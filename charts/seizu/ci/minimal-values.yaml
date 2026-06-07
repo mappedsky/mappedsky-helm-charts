@@ -1,0 +1,3 @@
+seizu:
+  neo4j:
+    uri: bolt://neo4j.default.svc.cluster.local:7687

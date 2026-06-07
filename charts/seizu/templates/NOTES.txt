@@ -1,0 +1,17 @@
+Seizu has been installed.
+
+Service:
+  {{ include "seizu.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- else }}
+Port-forward locally:
+  kubectl port-forward svc/{{ include "seizu.fullname" . }} 8080:{{ .Values.service.port }}
+{{- end }}
+
+Neo4j URI:
+  {{ .Values.seizu.neo4j.uri }}

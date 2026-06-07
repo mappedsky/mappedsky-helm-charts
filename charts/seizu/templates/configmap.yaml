@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "seizu.configMapName" . }}
+  labels:
+    {{- include "seizu.labels" . | nindent 4 }}
+data:
+  HOST: {{ .Values.seizu.host | quote }}
+  PORT: {{ .Values.seizu.port | quote }}
+  {{- with .Values.seizu.staticFolder }}
+  STATIC_FOLDER: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.seizu.logConfigFile }}
+  LOG_CONFIG_FILE: {{ . | quote }}
+  {{- end }}
+  TALISMAN_FORCE_HTTPS: {{ .Values.seizu.talismanForceHttps | quote }}
+  API_REQUEST_TIMEOUT: {{ .Values.seizu.apiRequestTimeout | quote }}
+  DEVELOPMENT_ONLY_REQUIRE_AUTH: {{ .Values.seizu.auth.developmentOnlyRequireAuth | quote }}
+  DEVELOPMENT_ONLY_AUTH_USER_EMAIL: {{ .Values.seizu.auth.developmentOnlyAuthUserEmail | quote }}
+  JWKS_URL: {{ .Values.seizu.auth.jwksUrl | quote }}
+  ALLOWED_JWT_ALGORITHMS: {{ join "," .Values.seizu.auth.allowedJwtAlgorithms | quote }}
+  JWT_HEADER_NAME: {{ .Values.seizu.auth.jwtHeaderName | quote }}
+  JWT_EMAIL_CLAIM: {{ .Values.seizu.auth.jwtEmailClaim | quote }}
+  JWT_USERNAME_CLAIM: {{ .Values.seizu.auth.jwtUsernameClaim | quote }}
+  JWT_SUB_CLAIM: {{ .Values.seizu.auth.jwtSubClaim | quote }}
+  JWT_ISS_CLAIM: {{ .Values.seizu.auth.jwtIssClaim | quote }}
+  JWT_ISSUER: {{ .Values.seizu.auth.jwtIssuer | quote }}
+  JWT_AUDIENCE: {{ .Values.seizu.auth.jwtAudience | quote }}
+  OIDC_AUTHORITY: {{ .Values.seizu.auth.oidcAuthority | quote }}
+  OIDC_INTERNAL_AUTHORITY: {{ .Values.seizu.auth.oidcInternalAuthority | quote }}
+  OIDC_CLIENT_ID: {{ .Values.seizu.auth.oidcClientId | quote }}
+  OIDC_TOKEN_ENDPOINT_AUTH_METHOD: {{ .Values.seizu.auth.oidcTokenEndpointAuthMethod | quote }}
+  OIDC_REDIRECT_URI: {{ .Values.seizu.auth.oidcRedirectUri | quote }}
+  OIDC_SCOPE: {{ .Values.seizu.auth.oidcScope | quote }}
+  OIDC_AUTHORIZE_EXTRA_PARAMS: {{ .Values.seizu.auth.oidcAuthorizeExtraParams | quote }}
+  OIDC_ENABLE_TOKEN_INTROSPECTION: {{ .Values.seizu.auth.oidcEnableTokenIntrospection | quote }}
+  OIDC_VALIDATE_ID_TOKEN: {{ .Values.seizu.auth.oidcValidateIdToken | quote }}
+  NEO4J_URI: {{ .Values.seizu.neo4j.uri | quote }}
+  NEO4J_NOTIFICATIONS_MIN_SEVERITY: {{ .Values.seizu.neo4j.notificationsMinSeverity | quote }}
+  NEO4J_MAX_CONNECTION_LIFETIME: {{ .Values.seizu.neo4j.maxConnectionLifetime | quote }}
+  NEO4J_CONNECTION_TIMEOUT: {{ .Values.seizu.neo4j.connectionTimeout | quote }}
+  NEO4J_QUERY_TIMEOUT: {{ .Values.seizu.neo4j.queryTimeout | quote }}
+  QUERY_VALIDATOR_ALLOWED_PROCEDURES: {{ join "," .Values.seizu.queryValidator.allowedProcedures | quote }}
+  REPORT_STORE_BACKEND: {{ .Values.seizu.reportStore.backend | quote }}
+  DYNAMODB_TABLE_NAME: {{ .Values.seizu.reportStore.dynamodb.tableName | quote }}
+  DYNAMODB_REGION: {{ .Values.seizu.reportStore.dynamodb.region | quote }}
+  DYNAMODB_ENDPOINT_URL: {{ .Values.seizu.reportStore.dynamodb.endpointUrl | quote }}
+  DYNAMODB_CREATE_TABLE: {{ .Values.seizu.reportStore.dynamodb.createTable | quote }}
+  SQL_DATABASE_URL: {{ .Values.seizu.reportStore.sqlDatabaseUrl | quote }}
+  RBAC_ROLE_CLAIM: {{ .Values.seizu.rbac.roleClaim | quote }}
+  RBAC_DEFAULT_ROLE: {{ .Values.seizu.rbac.defaultRole | quote }}
+  MCP_ENABLED: {{ .Values.seizu.mcp.enabled | quote }}
+  MCP_ENABLED_BUILTINS: {{ join "," .Values.seizu.mcp.enabledBuiltins | quote }}
+  MCP_OAUTH_ISSUER: {{ .Values.seizu.mcp.oauthIssuer | quote }}
+  MCP_OAUTH_AUTHORIZATION_ENDPOINT: {{ .Values.seizu.mcp.oauthAuthorizationEndpoint | quote }}
+  MCP_OAUTH_TOKEN_ENDPOINT: {{ .Values.seizu.mcp.oauthTokenEndpoint | quote }}
+  MCP_RESOURCE_URL: {{ .Values.seizu.mcp.resourceUrl | quote }}
+  MCP_OAUTH_REGISTRATION_ENDPOINT: {{ .Values.seizu.mcp.oauthRegistrationEndpoint | quote }}
+  ENABLE_SCHEDULED_QUERIES: {{ .Values.scheduledQueries.enabled | quote }}
+  SCHEDULED_QUERY_FREQUENCY: {{ .Values.scheduledQueries.frequency | quote }}
+  SCHEDULED_QUERY_MODULES: {{ join "," .Values.scheduledQueries.modules | quote }}

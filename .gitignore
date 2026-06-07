@@ -1,0 +1,14 @@
+.DS_Store
+*.swp
+*.swo
+
+# Helm packaging output
+*.tgz
+index.yaml
+.cr-release-packages/
+.cr-index/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.cache/

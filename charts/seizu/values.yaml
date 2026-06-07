@@ -1,0 +1,178 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/mappedsky/seizu
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: true
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+seizu:
+  host: 0.0.0.0
+  port: 8080
+  staticFolder: ""
+  logConfigFile: ""
+  talismanForceHttps: true
+  apiRequestTimeout: 60
+  auth:
+    developmentOnlyRequireAuth: false
+    developmentOnlyAuthUserEmail: testuser
+    jwksUrl: ""
+    allowedJwtAlgorithms:
+      - RS256
+      - ES256
+      - ES512
+    jwtHeaderName: Authorization
+    jwtEmailClaim: email
+    jwtUsernameClaim: preferred_username
+    jwtSubClaim: sub
+    jwtIssClaim: iss
+    jwtIssuer: ""
+    jwtAudience: ""
+    oidcAuthority: ""
+    oidcInternalAuthority: ""
+    oidcClientId: ""
+    oidcTokenEndpointAuthMethod: none
+    oidcRedirectUri: ""
+    oidcScope: openid email offline_access
+    oidcAuthorizeExtraParams: ""
+    oidcEnableTokenIntrospection: false
+    oidcValidateIdToken: true
+  neo4j:
+    uri: bolt://neo4j:7687
+    notificationsMinSeverity: WARNING
+    maxConnectionLifetime: 3600
+    connectionTimeout: 10
+    queryTimeout: 30
+  queryValidator:
+    allowedProcedures: []
+  reportStore:
+    backend: dynamodb
+    dynamodb:
+      tableName: seizu-reports
+      region: us-east-1
+      endpointUrl: ""
+      createTable: false
+    sqlDatabaseUrl: ""
+  rbac:
+    roleClaim: seizu_role
+    defaultRole: seizu-viewer
+  mcp:
+    enabled: true
+    enabledBuiltins: []
+    oauthIssuer: ""
+    oauthAuthorizationEndpoint: ""
+    oauthTokenEndpoint: ""
+    resourceUrl: ""
+    oauthRegistrationEndpoint: ""
+
+secrets:
+  create: true
+  existingSecret: ""
+  annotations: {}
+  data:
+    neo4jUser: ""
+    neo4jPassword: ""
+    oidcClientSecret: ""
+    reportQuerySigningSecret: ""
+    sessionTokenEncryptionKey: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: seizu.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /healthcheck
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 5
+
+readinessProbe:
+  httpGet:
+    path: /healthcheck
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: null
+
+scheduledQueries:
+  enabled: false
+  replicaCount: 1
+  command:
+    - python
+    - -m
+    - reporting.scheduled_queries
+  modules:
+    - reporting.scheduled_query_modules.sqs
+    - reporting.scheduled_query_modules.slack
+    - reporting.scheduled_query_modules.statsd
+  frequency: 20
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  extraEnv: []
+  extraEnvFrom: []
+
+runtimeDir:
+  enabled: true
+  mountPath: /run/seizu
+  medium: Memory
+  sizeLimit: ""
+
+extraEnv: []
+extraEnvFrom: []
+extraVolumeMounts: []
+extraVolumes: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
