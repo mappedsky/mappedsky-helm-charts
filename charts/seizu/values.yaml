@@ -37,6 +37,11 @@ seizu:
   logConfigFile: ""
   talismanForceHttps: true
   apiRequestTimeout: 60
+  # Public browser origin used when MCP clients need to show a user an approval
+  # URL. When unset, Seizu derives the origin from seizu.mcp.resourceUrl.
+  publicUrl: ""
+  # Maximum lifetime for an approved or denied mutating-action confirmation.
+  actionConfirmationTtlSeconds: 1800
   auth:
     developmentOnlyRequireAuth: false
     developmentOnlyAuthUserEmail: testuser
@@ -76,6 +81,8 @@ seizu:
       region: us-east-1
       endpointUrl: ""
       createTable: false
+    # Keep credentials out of this URL and provide them through
+    # secrets.data.sqlDatabaseUser / secrets.data.sqlDatabasePassword.
     sqlDatabaseUrl: ""
   rbac:
     roleClaim: seizu_role
@@ -88,6 +95,162 @@ seizu:
     oauthTokenEndpoint: ""
     resourceUrl: ""
     oauthRegistrationEndpoint: ""
+  # LangGraph-backed chat assistant. Disabled by default; enabling it requires
+  # an LLM provider (chat.llm) and checkpoint storage (chat.checkpoint).
+  chat:
+    enabled: false
+    llm:
+      # "mock" is deterministic and keyless (dev only; it cannot call tools).
+      # Any other value routes through LiteLLM; prefer "litellm" with a
+      # provider-namespaced model (e.g. "anthropic/claude-sonnet-4-5").
+      provider: mock
+      # LiteLLM model identifier. Required whenever provider is not "mock".
+      model: ""
+      # Optional API key via secrets.data.chatLlmApiKey, or the per-provider
+      # keys (secrets.data.anthropicApiKey, openaiApiKey, ...).
+      # Optional OpenAI-compatible base URL (LiteLLM api_base), e.g. a
+      # self-hosted LiteLLM proxy or other gateway.
+      baseUrl: ""
+      temperature: 0.2
+      maxTokens: 4096
+      timeoutSeconds: 60
+      maxRetries: 2
+      # Auto-continuation of responses truncated by the output-token limit.
+      # Set maxContinuations to 0 to disable; maxResponseChars is a hard
+      # ceiling on the stitched length (0 disables it).
+      maxContinuations: 2
+      maxResponseChars: 60000
+      # Prior messages/characters sent to the LLM per turn.
+      contextMaxMessages: 80
+      contextMaxChars: 120000
+      # Optional full system prompt override.
+      systemPrompt: ""
+      progressiveDisclosure: true
+      # Bounds on model-requested tool/skill calls per assistant turn.
+      maxAutoActions: 12
+      maxParallelToolCalls: 4
+      # Optional role-specific model overrides; empty values inherit llm.model.
+      plannerModel: ""
+      workerModel: ""
+      verifierModel: ""
+      synthesizerModel: ""
+      # Used for eligible read-only work after the run's soft budget limit.
+      economyModel: ""
+    # Plan -> dispatch -> verify orchestration for complex chat requests.
+    orchestrator:
+      enabled: true
+      maxSteps: 8
+      plannerMaxTokens: 4096
+      maxIterations: 3
+      maxParallel: 3
+      workerMaxActions: 24
+    # Per-turn budget shared by interactive and scheduled runs. A zero token
+    # or cost limit disables that dimension.
+    run:
+      tokenBudget: 120000
+      costBudgetUsd: 0
+      reservePercent: 20
+      softLimitPercent: 75
+      maxLlmCalls: 64
+    # LangGraph checkpoint storage: "dynamodb" (default) or "postgres".
+    checkpoint:
+      backend: dynamodb
+      # PostgreSQL URL used when backend=postgres; defaults to the report
+      # store's sqlDatabaseUrl when empty. Keep credentials out of the URL and
+      # use secrets.data.chatCheckpointDatabaseUser / ...Password instead.
+      databaseUrl: ""
+      poolMinSize: 1
+      poolMaxSize: 10
+      # DynamoDB-only settings.
+      tableName: seizu-chat-checkpoints
+      createTable: false
+      ttlSeconds: 0
+      enableCompression: true
+      # S3 offload for checkpoint payloads larger than 350KB.
+      s3Bucket: ""
+      s3EndpointUrl: ""
+      s3KeyPrefix: seizu/langgraph
+    maxPersistedMessages: 200
+    historyLimit: 100
+    # Caps on single MCP tool-call results returned to chat.
+    toolResultMaxRows: 100
+    toolResultMaxBytes: 200000
+  # Temporal server connection, used by the web service (workflow run
+  # visibility), the scheduled-query temporal action, and the temporal worker.
+  temporal:
+    address: localhost:7233
+    namespace: default
+    taskQueue: seizu-workflows
+    # Cap on scheduled-query result rows forwarded into a workflow.
+    workflowMaxResultRows: 200
+    # Allowlist of workflows the temporal scheduled-query action may start
+    # (e.g. [cve_repo_report]). Empty -> all registered workflows.
+    enabledWorkflows: []
+    # Per-repository AI chat activity timeout for workflows.
+    chatActivityTimeoutSeconds: 600
+  # Sandbox delegation (sandbox__delegate chat tool). Requires
+  # secrets.data.sandboxApiKey when using E2B; for self-hosted sandboxes set
+  # domain to the sandbox service hostname.
+  sandbox:
+    enabled: false
+    # Hostname of the sandbox API (no scheme). Empty -> E2B's cloud endpoint.
+    domain: ""
+    # Allow sandboxes to make outbound internet connections.
+    allowInternet: false
+    # Hard timeout for a single sandbox__delegate invocation.
+    timeoutSeconds: 120
+    maxOutputBytes: 50000
+    # LiteLLM model id for the sandbox subagent; empty inherits chat.llm.model.
+    llmModel: ""
+    # Headless coding-agent CLI run inside a sandbox (used by the
+    # cve_dependency_remediation workflow).
+    agent:
+      # "claude" (Claude Code), "codex", or "opencode".
+      provider: claude
+      # E2B sandbox template; empty -> the provider's official prebuilt
+      # template, "none" -> the plain base image.
+      template: ""
+      # Command run in the worker before each agent run; its stdout becomes
+      # that run's agent API key. Preferred over the static
+      # secrets.data.sandboxAgentApiKey for short-lived per-run keys.
+      apiKeyCommand: ""
+      # Optional LLM gateway/proxy base URL exported to the agent phase.
+      baseUrl: ""
+      # Model override for the coding-agent CLI. Required (as
+      # "provider/model") for opencode.
+      model: ""
+      # Run a separate ephemeral LiteLLM credential-proxy sandbox so the agent
+      # sandbox only holds a budget-capped virtual key. Mutually exclusive
+      # with baseUrl.
+      credentialProxyEnabled: false
+      # Max spend (USD) on the per-run virtual key.
+      credentialProxyMaxBudget: "5"
+  # CVE dependency remediation (cve_dependency_remediation workflow). Enabled
+  # by configuration: it runs only when secrets.data.remediationGithubToken and
+  # a sandbox-agent API key are set.
+  remediation:
+    # Hard timeout for one remediation run (all sandbox phases).
+    timeoutSeconds: 1800
+    # Post-push CI watch. maxWaitSeconds 0 disables the watch;
+    # fixMaxAttempts 0 watches and records but never fixes.
+    ciMaxWaitSeconds: 3600
+    ciPollSeconds: 120
+    ciQueuedStuckSeconds: 1800
+    ciFixMaxAttempts: 1
+    # gh CLI version installed in sandboxes that lack it, and an optional
+    # out-of-band SHA-256 pin of its release tarball.
+    ghVersion: "2.62.0"
+    ghSha256: ""
+    # "github.com" or a GitHub Enterprise Server hostname.
+    githubHost: github.com
+    # Push work branches to a bot-owned fork and open cross-repo PRs instead
+    # of writing branches into the target repos.
+    useFork: false
+    # Organization owning the bot forks; empty -> the token user's account.
+    forkOrg: ""
+    # git author identity for remediation commits.
+    gitUser: seizu-remediation-bot
+    gitEmail: seizu-remediation@localhost
 
 secrets:
   create: true
@@ -99,6 +262,29 @@ secrets:
     oidcClientSecret: ""
     reportQuerySigningSecret: ""
     sessionTokenEncryptionKey: ""
+    # Credentials overlaid on seizu.reportStore.sqlDatabaseUrl.
+    sqlDatabaseUser: ""
+    sqlDatabasePassword: ""
+    # Credentials for seizu.chat.checkpoint.databaseUrl; empty values inherit
+    # the SQL credentials above.
+    chatCheckpointDatabaseUser: ""
+    chatCheckpointDatabasePassword: ""
+    # API key override passed to LiteLLM for the chat assistant. If empty, the
+    # per-provider keys below apply.
+    chatLlmApiKey: ""
+    openaiApiKey: ""
+    anthropicApiKey: ""
+    geminiApiKey: ""
+    googleApiKey: ""
+    deepseekApiKey: ""
+    # API key for the sandbox service (required for E2B).
+    sandboxApiKey: ""
+    # Static API key for the sandbox coding agent; prefer
+    # seizu.sandbox.agent.apiKeyCommand for short-lived per-run keys.
+    sandboxAgentApiKey: ""
+    # GitHub token for the remediation workflow's setup/push phases and CI
+    # watch. Configured = the workflow is enabled.
+    remediationGithubToken: ""
 
 service:
   type: ClusterIP
@@ -154,7 +340,44 @@ scheduledQueries:
     - reporting.scheduled_query_modules.sqs
     - reporting.scheduled_query_modules.slack
     - reporting.scheduled_query_modules.statsd
+    - reporting.scheduled_query_modules.temporal
   frequency: 20
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  extraEnv: []
+  extraEnvFrom: []
+
+# Scheduled chats worker (recurring headless agent runs managed from the chat
+# UI). Enabling it also enables the API routes and the frontend UI. Requires
+# seizu.chat.enabled=true.
+scheduledChats:
+  enabled: false
+  replicaCount: 1
+  command:
+    - python
+    - -m
+    - reporting.scheduled_chats
+  # How often the worker polls for due schedules.
+  pollSeconds: 20
+  # Timeout for one scheduled headless agent session.
+  timeoutSeconds: 600
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  extraEnv: []
+  extraEnvFrom: []
+
+# Temporal worker hosting Seizu's workflow and activity code (used by the
+# temporal scheduled-query action). Requires a reachable Temporal server
+# (seizu.temporal.address); this chart does not deploy Temporal.
+temporalWorker:
+  enabled: false
+  replicaCount: 1
+  command:
+    - python
+    - -m
+    - reporting.temporal_worker
   resources: {}
   podAnnotations: {}
   podLabels: {}
