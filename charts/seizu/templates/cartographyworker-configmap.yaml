@@ -1,0 +1,20 @@
+{{- if .Values.cartographyWorker.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "seizu.cartographyWorkerConfigMapName" . }}
+  labels:
+    {{- include "seizu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cartography-worker
+data:
+  TEMPORAL_ADDRESS: {{ .Values.seizu.temporal.address | quote }}
+  TEMPORAL_NAMESPACE: {{ .Values.seizu.temporal.namespace | quote }}
+  CARTOGRAPHY_TASK_QUEUE: {{ .Values.seizu.cartography.taskQueue | quote }}
+  CARTOGRAPHY_ENABLED_MODULES: {{ join "," .Values.seizu.cartography.enabledModules | quote }}
+  CARTOGRAPHY_NEO4J_URI: {{ default .Values.seizu.neo4j.uri .Values.cartographyWorker.neo4jUri | quote }}
+  {{- range $name, $value := .Values.cartographyWorker.config }}
+  {{- if ne (toString $value) "" }}
+  {{ $name }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}
