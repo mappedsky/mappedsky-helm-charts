@@ -31,12 +31,18 @@ securityContext:
       - ALL
 
 seizu:
+  debug: false
   host: 0.0.0.0
   port: 8080
   staticFolder: ""
   logConfigFile: ""
   talismanForceHttps: true
   apiRequestTimeout: 60
+  jwksFetchTimeout: 10
+  awsConnectTimeout: 5
+  awsReadTimeout: 30
+  sqlStatementTimeout: 30
+  slackTimeout: 30
   # Public browser origin used when MCP clients need to show a user an approval
   # URL. When unset, Seizu derives the origin from seizu.mcp.resourceUrl.
   publicUrl: ""
@@ -61,11 +67,19 @@ seizu:
     oidcInternalAuthority: ""
     oidcClientId: ""
     oidcTokenEndpointAuthMethod: none
+    # Empty values inherit oidcTokenEndpointAuthMethod.
+    oidcRevocationEndpointAuthMethod: ""
+    oidcIntrospectionEndpointAuthMethod: ""
+    oidcDiscoveryCacheTtlSeconds: 3600
     oidcRedirectUri: ""
     oidcScope: openid email offline_access
     oidcAuthorizeExtraParams: ""
     oidcEnableTokenIntrospection: false
     oidcValidateIdToken: true
+    sessionCookieName: seizu_session
+    sessionCookieMaxAgeSeconds: 64800
+    oidcRevokeRefreshTokenOnLogout: true
+    oidcRefreshTokenFallbackTtlSeconds: 2592000
   neo4j:
     uri: bolt://neo4j:7687
     notificationsMinSeverity: WARNING
@@ -76,6 +90,8 @@ seizu:
     allowedProcedures: []
   reportStore:
     backend: dynamodb
+    # Unique 0-1023 value per replica when multiple instances may generate IDs.
+    snowflakeMachineId: 1
     dynamodb:
       tableName: seizu-reports
       region: us-east-1
@@ -87,6 +103,10 @@ seizu:
   rbac:
     roleClaim: seizu_role
     defaultRole: seizu-viewer
+  statsd:
+    host: ""
+    port: 8125
+    constantTags: []
   mcp:
     enabled: true
     enabledBuiltins: []
@@ -188,6 +208,26 @@ seizu:
     enabledWorkflows: []
     # Per-repository AI chat activity timeout for workflows.
     chatActivityTimeoutSeconds: 600
+  # Temporal-backed configurable workflows. In Seizu 4, these replace
+  # scheduled queries as the primary scheduling and automation interface.
+  workflows:
+    activityModules:
+      - reporting.scheduled_query_modules.sqs
+      - reporting.scheduled_query_modules.slack
+      - reporting.scheduled_query_modules.statsd
+    queryMaxRows: 200
+    resultMaxBytes: 1000000
+    watchPollSeconds: 20
+    reconcileSeconds: 30
+  # Cartography workflow orchestration settings used by the web and Temporal
+  # workers. Keep enabledModules and taskQueue aligned with cartographyWorker.
+  cartography:
+    taskQueue: seizu-cartography
+    # Empty enables every module in Seizu's Cartography 0.139.0 registry.
+    enabledModules: []
+    moduleTimeoutSeconds: 3600
+    moduleWaitSeconds: 3600
+    syncRetryAttempts: 2
   # Sandbox delegation (sandbox__delegate chat tool). Requires
   # secrets.data.sandboxApiKey when using E2B; for self-hosted sandboxes set
   # domain to the sandbox service hostname.
@@ -336,11 +376,6 @@ scheduledQueries:
     - python
     - -m
     - reporting.scheduled_queries
-  modules:
-    - reporting.scheduled_query_modules.sqs
-    - reporting.scheduled_query_modules.slack
-    - reporting.scheduled_query_modules.statsd
-    - reporting.scheduled_query_modules.temporal
   frequency: 20
   resources: {}
   podAnnotations: {}
@@ -383,6 +418,129 @@ temporalWorker:
   podLabels: {}
   extraEnv: []
   extraEnvFrom: []
+
+# Dedicated Cartography 0.139.0 Temporal activity worker. The image contains
+# Cartography and the thin Seizu worker only; it intentionally does not receive
+# the main Seizu Secret. Enable temporalWorker as well unless another
+# deployment is already serving the Seizu workflow task queue.
+cartographyWorker:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/mappedsky/seizu-cartography
+    pullPolicy: IfNotPresent
+    # Empty follows Chart.appVersion (4.0.0).
+    tag: ""
+  # Empty uses the image's default: python -m cartography_sync.worker.
+  command: []
+  # Empty inherits seizu.neo4j.uri.
+  neo4jUri: ""
+  # Non-secret worker and upstream SDK configuration. Empty values are omitted.
+  # File paths must be supplied through extraVolumes/extraVolumeMounts.
+  config:
+    LOG_LEVEL: INFO
+    CARTOGRAPHY_BIN: cartography
+    CARTOGRAPHY_STATSD_ENABLED: "false"
+    CARTOGRAPHY_STATSD_HOST: ""
+    CARTOGRAPHY_AWS_PROFILE: ""
+    CARTOGRAPHY_AWS_REGION: ""
+    CARTOGRAPHY_AWS_DEFAULT_REGION: ""
+    CARTOGRAPHY_AWS_CONFIG_FILE: ""
+    CARTOGRAPHY_AWS_SHARED_CREDENTIALS_FILE: ""
+    CARTOGRAPHY_AWS_EC2_METADATA_SERVICE_ENDPOINT: ""
+    CARTOGRAPHY_AWS_ROLE_ARN: ""
+    CARTOGRAPHY_AWS_WEB_IDENTITY_TOKEN_FILE: ""
+    CARTOGRAPHY_GOOGLE_APPLICATION_CREDENTIALS: ""
+    CARTOGRAPHY_GOOGLE_CLOUD_PROJECT: ""
+    CARTOGRAPHY_CLOUDSDK_CONFIG: ""
+    CARTOGRAPHY_OCI_CONFIG_FILE: ""
+    CARTOGRAPHY_OCI_CONFIG_PROFILE: ""
+    CARTOGRAPHY_OCI_CLI_AUTH: ""
+    CARTOGRAPHY_OCI_CLI_REGION: ""
+  # Cartography credentials use their exact v4.0.0 environment-variable names
+  # to make upgrades auditable. Only non-empty values are written.
+  secrets:
+    create: true
+    existingSecret: ""
+    annotations: {}
+    data:
+      CARTOGRAPHY_NEO4J_USER: ""
+      CARTOGRAPHY_NEO4J_PASSWORD: ""
+      CARTOGRAPHY_GITHUB_CONFIG: ""
+      # Deprecated compatibility alias; it must contain the same base64 JSON
+      # config as CARTOGRAPHY_GITHUB_CONFIG, never a bare token.
+      CARTOGRAPHY_GITHUB_TOKEN: ""
+      CARTOGRAPHY_AWS_ACCESS_KEY_ID: ""
+      CARTOGRAPHY_AWS_SECRET_ACCESS_KEY: ""
+      CARTOGRAPHY_AWS_SESSION_TOKEN: ""
+      CARTOGRAPHY_AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: ""
+      CARTOGRAPHY_AWS_CONTAINER_CREDENTIALS_FULL_URI: ""
+      CARTOGRAPHY_AIRBYTE_CLIENT_SECRET: ""
+      CARTOGRAPHY_ANTHROPIC_API_KEY: ""
+      CARTOGRAPHY_AZURE_CLIENT_SECRET: ""
+      CARTOGRAPHY_MICROSOFT_CLIENT_SECRET: ""
+      CARTOGRAPHY_CLOUDFLARE_TOKEN: ""
+      CARTOGRAPHY_NIST_NVD_TOKEN: ""
+      CARTOGRAPHY_CROWDSTRIKE_CLIENT_ID: ""
+      CARTOGRAPHY_CROWDSTRIKE_CLIENT_SECRET: ""
+      CARTOGRAPHY_DATABRICKS_TOKEN: ""
+      CARTOGRAPHY_DATABRICKS_CLIENT_SECRET: ""
+      CARTOGRAPHY_DATABRICKS_ACCOUNT_CLIENT_SECRET: ""
+      CARTOGRAPHY_DIGITALOCEAN_TOKEN: ""
+      CARTOGRAPHY_GITLAB_TOKEN: ""
+      CARTOGRAPHY_GOOGLEWORKSPACE_GOOGLE_APPLICATION_CREDENTIALS: ""
+      CARTOGRAPHY_GSUITE_GOOGLE_APPLICATION_CREDENTIALS: ""
+      CARTOGRAPHY_JAMF_PASSWORD: ""
+      CARTOGRAPHY_JUMPCLOUD_API_KEY: ""
+      CARTOGRAPHY_KANDJI_TOKEN: ""
+      CARTOGRAPHY_KEYCLOAK_CLIENT_SECRET: ""
+      CARTOGRAPHY_LASTPASS_CID: ""
+      CARTOGRAPHY_LASTPASS_PROVHASH: ""
+      CARTOGRAPHY_BIGFIX_PASSWORD: ""
+      CARTOGRAPHY_DUO_API_KEY: ""
+      CARTOGRAPHY_DUO_API_SECRET: ""
+      CARTOGRAPHY_WORKDAY_API_PASSWORD: ""
+      CARTOGRAPHY_OPENAI_API_KEY: ""
+      CARTOGRAPHY_PAGERDUTY_API_KEY: ""
+      CARTOGRAPHY_OKTA_API_KEY: ""
+      CARTOGRAPHY_SALESFORCE_CLIENT_SECRET: ""
+      CARTOGRAPHY_SALESFORCE_PRIVATE_KEY: ""
+      CARTOGRAPHY_SCALEWAY_SECRET_KEY: ""
+      CARTOGRAPHY_SEMGREP_APP_TOKEN: ""
+      CARTOGRAPHY_SENTRY_TOKEN: ""
+      CARTOGRAPHY_SENTINELONE_API_TOKEN: ""
+      CARTOGRAPHY_SLACK_TOKEN: ""
+      CARTOGRAPHY_SNIPEIT_TOKEN: ""
+      CARTOGRAPHY_SOCKETDEV_TOKEN: ""
+      CARTOGRAPHY_SPACELIFT_API_TOKEN: ""
+      CARTOGRAPHY_SPACELIFT_API_KEY_ID: ""
+      CARTOGRAPHY_SPACELIFT_API_KEY_SECRET: ""
+      CARTOGRAPHY_SUBIMAGE_CLIENT_ID: ""
+      CARTOGRAPHY_SUBIMAGE_CLIENT_SECRET: ""
+      CARTOGRAPHY_TAILSCALE_TOKEN: ""
+      CARTOGRAPHY_TAILSCALE_OAUTH_CLIENT_ID: ""
+      CARTOGRAPHY_TAILSCALE_OAUTH_CLIENT_SECRET: ""
+      CARTOGRAPHY_TENABLE_ACCESS_KEY: ""
+      CARTOGRAPHY_TENABLE_SECRET_KEY: ""
+      CARTOGRAPHY_VERCEL_TOKEN: ""
+      CARTOGRAPHY_CIRCLECI_TOKEN: ""
+      CARTOGRAPHY_WORKOS_API_KEY: ""
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    fsGroup: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    runAsUser: 10001
+  resources: {}
+  extraEnv: []
+  extraEnvFrom: []
+  extraVolumeMounts: []
+  extraVolumes: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
 
 runtimeDir:
   enabled: true

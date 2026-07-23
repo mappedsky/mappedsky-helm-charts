@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "seizu.labels" . | nindent 4 }}
 data:
+  DEBUG: {{ .Values.seizu.debug | quote }}
   HOST: {{ .Values.seizu.host | quote }}
   PORT: {{ .Values.seizu.port | quote }}
   {{- with .Values.seizu.staticFolder }}
@@ -15,6 +16,11 @@ data:
   {{- end }}
   TALISMAN_FORCE_HTTPS: {{ .Values.seizu.talismanForceHttps | quote }}
   API_REQUEST_TIMEOUT: {{ .Values.seizu.apiRequestTimeout | quote }}
+  JWKS_FETCH_TIMEOUT: {{ .Values.seizu.jwksFetchTimeout | quote }}
+  AWS_CONNECT_TIMEOUT: {{ .Values.seizu.awsConnectTimeout | quote }}
+  AWS_READ_TIMEOUT: {{ .Values.seizu.awsReadTimeout | quote }}
+  SQL_STATEMENT_TIMEOUT: {{ .Values.seizu.sqlStatementTimeout | quote }}
+  SLACK_TIMEOUT: {{ .Values.seizu.slackTimeout | quote }}
   SEIZU_PUBLIC_URL: {{ .Values.seizu.publicUrl | quote }}
   ACTION_CONFIRMATION_TTL_SECONDS: {{ .Values.seizu.actionConfirmationTtlSeconds | quote }}
   DEVELOPMENT_ONLY_REQUIRE_AUTH: {{ .Values.seizu.auth.developmentOnlyRequireAuth | quote }}
@@ -32,11 +38,22 @@ data:
   OIDC_INTERNAL_AUTHORITY: {{ .Values.seizu.auth.oidcInternalAuthority | quote }}
   OIDC_CLIENT_ID: {{ .Values.seizu.auth.oidcClientId | quote }}
   OIDC_TOKEN_ENDPOINT_AUTH_METHOD: {{ .Values.seizu.auth.oidcTokenEndpointAuthMethod | quote }}
+  {{- with .Values.seizu.auth.oidcRevocationEndpointAuthMethod }}
+  OIDC_REVOCATION_ENDPOINT_AUTH_METHOD: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.seizu.auth.oidcIntrospectionEndpointAuthMethod }}
+  OIDC_INTROSPECTION_ENDPOINT_AUTH_METHOD: {{ . | quote }}
+  {{- end }}
+  OIDC_DISCOVERY_CACHE_TTL_SECONDS: {{ .Values.seizu.auth.oidcDiscoveryCacheTtlSeconds | quote }}
   OIDC_REDIRECT_URI: {{ .Values.seizu.auth.oidcRedirectUri | quote }}
   OIDC_SCOPE: {{ .Values.seizu.auth.oidcScope | quote }}
   OIDC_AUTHORIZE_EXTRA_PARAMS: {{ .Values.seizu.auth.oidcAuthorizeExtraParams | quote }}
   OIDC_ENABLE_TOKEN_INTROSPECTION: {{ .Values.seizu.auth.oidcEnableTokenIntrospection | quote }}
   OIDC_VALIDATE_ID_TOKEN: {{ .Values.seizu.auth.oidcValidateIdToken | quote }}
+  SESSION_COOKIE_NAME: {{ .Values.seizu.auth.sessionCookieName | quote }}
+  SESSION_COOKIE_MAX_AGE_SECONDS: {{ .Values.seizu.auth.sessionCookieMaxAgeSeconds | quote }}
+  OIDC_REVOKE_REFRESH_TOKEN_ON_LOGOUT: {{ .Values.seizu.auth.oidcRevokeRefreshTokenOnLogout | quote }}
+  OIDC_REFRESH_TOKEN_FALLBACK_TTL_SECONDS: {{ .Values.seizu.auth.oidcRefreshTokenFallbackTtlSeconds | quote }}
   NEO4J_URI: {{ .Values.seizu.neo4j.uri | quote }}
   NEO4J_NOTIFICATIONS_MIN_SEVERITY: {{ .Values.seizu.neo4j.notificationsMinSeverity | quote }}
   NEO4J_MAX_CONNECTION_LIFETIME: {{ .Values.seizu.neo4j.maxConnectionLifetime | quote }}
@@ -48,9 +65,13 @@ data:
   DYNAMODB_REGION: {{ .Values.seizu.reportStore.dynamodb.region | quote }}
   DYNAMODB_ENDPOINT_URL: {{ .Values.seizu.reportStore.dynamodb.endpointUrl | quote }}
   DYNAMODB_CREATE_TABLE: {{ .Values.seizu.reportStore.dynamodb.createTable | quote }}
+  SNOWFLAKE_MACHINE_ID: {{ .Values.seizu.reportStore.snowflakeMachineId | quote }}
   SQL_DATABASE_URL: {{ .Values.seizu.reportStore.sqlDatabaseUrl | quote }}
   RBAC_ROLE_CLAIM: {{ .Values.seizu.rbac.roleClaim | quote }}
   RBAC_DEFAULT_ROLE: {{ .Values.seizu.rbac.defaultRole | quote }}
+  STATSD_HOST: {{ .Values.seizu.statsd.host | quote }}
+  STATSD_PORT: {{ .Values.seizu.statsd.port | quote }}
+  STATSD_CONSTANT_TAGS: {{ join "," .Values.seizu.statsd.constantTags | quote }}
   MCP_ENABLED: {{ .Values.seizu.mcp.enabled | quote }}
   MCP_ENABLED_BUILTINS: {{ join "," .Values.seizu.mcp.enabledBuiltins | quote }}
   MCP_OAUTH_ISSUER: {{ .Values.seizu.mcp.oauthIssuer | quote }}
@@ -60,7 +81,11 @@ data:
   MCP_OAUTH_REGISTRATION_ENDPOINT: {{ .Values.seizu.mcp.oauthRegistrationEndpoint | quote }}
   ENABLE_SCHEDULED_QUERIES: {{ .Values.scheduledQueries.enabled | quote }}
   SCHEDULED_QUERY_FREQUENCY: {{ .Values.scheduledQueries.frequency | quote }}
-  SCHEDULED_QUERY_MODULES: {{ join "," .Values.scheduledQueries.modules | quote }}
+  WORKFLOW_ACTIVITY_MODULES: {{ join "," .Values.seizu.workflows.activityModules | quote }}
+  WORKFLOW_QUERY_MAX_ROWS: {{ .Values.seizu.workflows.queryMaxRows | quote }}
+  WORKFLOW_RESULT_MAX_BYTES: {{ .Values.seizu.workflows.resultMaxBytes | quote }}
+  WORKFLOW_WATCH_POLL_SECONDS: {{ .Values.seizu.workflows.watchPollSeconds | quote }}
+  WORKFLOW_RECONCILE_SECONDS: {{ .Values.seizu.workflows.reconcileSeconds | quote }}
   CHAT_ENABLED: {{ .Values.seizu.chat.enabled | quote }}
   CHAT_LLM_PROVIDER: {{ .Values.seizu.chat.llm.provider | quote }}
   CHAT_LLM_MODEL: {{ .Values.seizu.chat.llm.model | quote }}
@@ -118,6 +143,11 @@ data:
   TEMPORAL_WORKFLOW_MAX_RESULT_ROWS: {{ .Values.seizu.temporal.workflowMaxResultRows | quote }}
   TEMPORAL_ENABLED_WORKFLOWS: {{ join "," .Values.seizu.temporal.enabledWorkflows | quote }}
   TEMPORAL_CHAT_ACTIVITY_TIMEOUT_SECONDS: {{ .Values.seizu.temporal.chatActivityTimeoutSeconds | quote }}
+  CARTOGRAPHY_TASK_QUEUE: {{ .Values.seizu.cartography.taskQueue | quote }}
+  CARTOGRAPHY_ENABLED_MODULES: {{ join "," .Values.seizu.cartography.enabledModules | quote }}
+  CARTOGRAPHY_MODULE_TIMEOUT_SECONDS: {{ .Values.seizu.cartography.moduleTimeoutSeconds | quote }}
+  CARTOGRAPHY_MODULE_WAIT_SECONDS: {{ .Values.seizu.cartography.moduleWaitSeconds | quote }}
+  CARTOGRAPHY_SYNC_RETRY_ATTEMPTS: {{ .Values.seizu.cartography.syncRetryAttempts | quote }}
   SANDBOX_ENABLED: {{ .Values.seizu.sandbox.enabled | quote }}
   SANDBOX_DOMAIN: {{ .Values.seizu.sandbox.domain | quote }}
   SANDBOX_ALLOW_INTERNET: {{ .Values.seizu.sandbox.allowInternet | quote }}

@@ -80,3 +80,32 @@ Image reference.
 {{- $tag := default .Chart.AppVersion .Values.image.tag -}}
 {{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- end -}}
+
+{{/*
+Cartography worker image reference.
+*/}}
+{{- define "seizu.cartographyWorkerImage" -}}
+{{- $tag := default .Chart.AppVersion .Values.cartographyWorker.image.tag -}}
+{{- printf "%s:%s" .Values.cartographyWorker.image.repository $tag -}}
+{{- end -}}
+
+{{/*
+Cartography worker workload name.
+*/}}
+{{- define "seizu.cartographyWorkerFullname" -}}
+{{- printf "%s-cartography-worker" (include "seizu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Cartography worker ConfigMap name.
+*/}}
+{{- define "seizu.cartographyWorkerConfigMapName" -}}
+{{- printf "%s-cartography-worker-config" (include "seizu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Cartography worker Secret name.
+*/}}
+{{- define "seizu.cartographyWorkerSecretName" -}}
+{{- default (printf "%s-cartography-worker-secret" (include "seizu.fullname" .) | trunc 63 | trimSuffix "-") .Values.cartographyWorker.secrets.existingSecret -}}
+{{- end -}}
