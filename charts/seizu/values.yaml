@@ -79,7 +79,7 @@ seizu:
     sessionCookieName: seizu_session
     sessionCookieMaxAgeSeconds: 64800
     oidcRevokeRefreshTokenOnLogout: true
-    oidcRefreshTokenFallbackTtlSeconds: 2592000
+    oidcRefreshTokenFallbackTtlSeconds: "2592000"
   neo4j:
     uri: bolt://neo4j:7687
     notificationsMinSeverity: WARNING
@@ -216,7 +216,7 @@ seizu:
       - reporting.scheduled_query_modules.slack
       - reporting.scheduled_query_modules.statsd
     queryMaxRows: 200
-    resultMaxBytes: 1000000
+    resultMaxBytes: "1000000"
     watchPollSeconds: 20
     reconcileSeconds: 30
   # Cartography workflow orchestration settings used by the web and Temporal
