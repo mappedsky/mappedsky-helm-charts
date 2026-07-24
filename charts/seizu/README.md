@@ -78,7 +78,7 @@ helm upgrade --install seizu ./charts/seizu \
   --set-string cartographyWorker.secrets.data.CARTOGRAPHY_NIST_NVD_TOKEN=<key>
 ```
 
-The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:4.0.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
+The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:4.1.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
 
 - `seizu.cartography.*` configures the task queue, module allowlist, module timeout/wait, and retry count used by the web and Temporal workers.
 - `cartographyWorker.neo4jUri` defaults to `seizu.neo4j.uri`. Neo4j credentials belong in `cartographyWorker.secrets.data.CARTOGRAPHY_NEO4J_USER` and `CARTOGRAPHY_NEO4J_PASSWORD`.
