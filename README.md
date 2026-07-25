@@ -67,3 +67,12 @@ git push origin seizu-v0.1.0
 ```
 
 Already-published versions are skipped, so both paths are safe to re-run.
+
+Development chart releases use a semantic-version prerelease suffix and must be
+installed explicitly. For example, a chart with version `0.3.3-dev.1` is
+released with tag `seizu-v0.3.3-dev.1` and installed with:
+
+```sh
+helm install seizu oci://ghcr.io/mappedsky/charts/seizu \
+  --version 0.3.3-dev.1
+```
