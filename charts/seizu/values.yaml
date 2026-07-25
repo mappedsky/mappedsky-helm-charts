@@ -429,7 +429,7 @@ cartographyWorker:
   image:
     repository: ghcr.io/mappedsky/seizu-cartography
     pullPolicy: IfNotPresent
-    # Empty follows Chart.appVersion (4.1.0).
+    # Empty follows Chart.appVersion (4.2.0.dev1).
     tag: ""
   # Empty uses the image's default: python -m cartography_sync.worker.
   command: []
