@@ -1,3 +1,10 @@
+# Smallest coherent install: authentication explicitly disabled, as a
+# development deployment would. See authenticated-values.yaml for the
+# production shape.
 seizu:
   neo4j:
     uri: bolt://neo4j.default.svc.cluster.local:7687
+  reportStore:
+    sqlDatabaseUrl: postgresql://postgres.default.svc.cluster.local:5432/seizu
+  auth:
+    developmentOnlyRequireAuth: false

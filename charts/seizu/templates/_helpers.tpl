@@ -109,3 +109,29 @@ Cartography worker Secret name.
 {{- define "seizu.cartographyWorkerSecretName" -}}
 {{- default (printf "%s-cartography-worker-secret" (include "seizu.fullname" .) | trunc 63 | trimSuffix "-") .Values.cartographyWorker.secrets.existingSecret -}}
 {{- end -}}
+
+{{/*
+Render a scalar as a quoted environment-variable value.
+
+Helm parses every unquoted YAML number in a values file as a float64, and Go
+renders a float64 of 1e6 or more in scientific notation -- "1e+06" -- which
+Seizu's int_env()/float_env() then reject with a ValueError at import, so the
+container crashloops. (Values passed with --set arrive as int64 and were never
+affected, which is why this only ever bit values-file users.) Integral numbers
+are therefore formatted as plain integers; genuine fractions and all other
+types render unchanged.
+*/}}
+{{- define "seizu.envValue" -}}
+{{- if kindIs "float64" . -}}
+{{- if eq . (floor .) -}}
+{{- printf "%.0f" . | quote -}}
+{{- else -}}
+{{- /* %v would also go exponential on a large fraction, so fix the precision
+       and trim the padding back off. */ -}}
+{{- $f := trimSuffix "." (regexReplaceAll "0+$" (printf "%.10f" .) "") -}}
+{{- default "0" $f | quote -}}
+{{- end -}}
+{{- else -}}
+{{- . | quote -}}
+{{- end -}}
+{{- end -}}

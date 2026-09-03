@@ -1,4 +1,4 @@
-Seizu has been installed.
+Seizu {{ .Chart.AppVersion }} has been installed.
 
 Service:
   {{ include "seizu.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
@@ -15,3 +15,53 @@ Port-forward locally:
 
 Neo4j URI:
   {{ .Values.seizu.neo4j.uri }}
+
+{{- if not .Values.seizu.reportStore.sqlDatabaseUrl }}
+
+WARNING: seizu.reportStore.sqlDatabaseUrl is empty. Seizu 5 stores every
+application record in PostgreSQL and has no other backend. Set it (and
+secrets.data.sqlDatabaseUser / sqlDatabasePassword) before serving traffic.
+{{- end }}
+
+{{- if .Values.seizu.auth.developmentOnlyRequireAuth }}
+{{- if and (not .Values.seizu.auth.jwksUrl) (not .Values.seizu.auth.oidcAuthority) }}
+
+WARNING: authentication is required but no login path is configured. Set
+seizu.auth.jwksUrl for bearer-JWT clients, or seizu.auth.oidcAuthority and
+seizu.auth.oidcClientId for the browser flow. Nobody can sign in as configured.
+{{- end }}
+{{- if .Values.secrets.create }}
+{{- $missing := list }}
+{{- if not .Values.secrets.data.reportQuerySigningSecret }}{{ $missing = append $missing "reportQuerySigningSecret  (openssl rand -hex 64)" }}{{ end }}
+{{- if not .Values.secrets.data.sessionTokenEncryptionKey }}{{ $missing = append $missing "sessionTokenEncryptionKey (openssl rand -base64 32)" }}{{ end }}
+{{- if $missing }}
+
+WARNING: authentication is required but these secrets are empty. Seizu reads
+them lazily, so the pod starts healthy and fails on the first request needing
+them:
+{{- range $missing }}
+  - secrets.data.{{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- else }}
+
+WARNING: seizu.auth.developmentOnlyRequireAuth=false disables authentication
+entirely. Every request is served as {{ .Values.seizu.auth.developmentOnlyAuthUserEmail }}.
+Use this only in development.
+{{- end }}
+
+{{- if .Values.seizu.chat.enabled }}
+{{- if not .Values.temporalWorker.enabled }}
+
+WARNING: seizu.chat.enabled=true with temporalWorker.enabled=false. Every chat
+turn runs as a Temporal workflow, so chat cannot admit a turn unless a worker
+polling {{ .Values.seizu.temporal.taskQueue }} at {{ .Values.seizu.temporal.address }}
+is deployed -- by this chart or alongside it.
+{{- end }}
+{{- if and (ne .Values.seizu.chat.llm.provider "mock") (not .Values.seizu.chat.llm.model) }}
+
+NOTE: seizu.chat.llm.model is empty with a real provider. Startup requires it
+unless an enabled default model profile supplies a complete model snapshot.
+{{- end }}
+{{- end }}

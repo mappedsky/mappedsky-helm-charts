@@ -9,6 +9,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# Empty uses the image's default entrypoint (the web service).
+command: []
+args: []
+
 serviceAccount:
   create: true
   annotations: {}
@@ -48,8 +52,23 @@ seizu:
   publicUrl: ""
   # Maximum lifetime for an approved or denied mutating-action confirmation.
   actionConfirmationTtlSeconds: 1800
+  # Tags every sandbox this installation creates, and is the only ownership
+  # claim the sandbox reaper acts on. Set it whenever the sandbox credentials
+  # are shared with another Seizu installation.
+  deploymentId: ""
   auth:
-    developmentOnlyRequireAuth: false
+    # Despite the name, this is the production setting: true requires
+    # authentication, and the "developmentOnly" prefix means only a development
+    # deployment should turn it OFF. Setting it false disables authentication
+    # entirely and serves every request as developmentOnlyAuthUserEmail.
+    #
+    # With it on you must also configure a login path -- jwksUrl for bearer JWT
+    # clients, oidcAuthority + oidcClientId for the browser flow -- and provide
+    # secrets.data.reportQuerySigningSecret and
+    # secrets.data.sessionTokenEncryptionKey. Those two are required lazily, so
+    # a pod missing them starts healthy and fails on first use.
+    developmentOnlyRequireAuth: true
+    # Only used when developmentOnlyRequireAuth is false.
     developmentOnlyAuthUserEmail: testuser
     jwksUrl: ""
     allowedJwtAlgorithms:
@@ -65,6 +84,9 @@ seizu:
     jwtAudience: ""
     oidcAuthority: ""
     oidcInternalAuthority: ""
+    # Refuse to start when the internal and external authorities advertise
+    # different issuers, instead of only logging the mismatch.
+    oidcRequireConsistentIssuer: false
     oidcClientId: ""
     oidcTokenEndpointAuthMethod: none
     # Empty values inherit oidcTokenEndpointAuthMethod.
@@ -79,26 +101,28 @@ seizu:
     sessionCookieName: seizu_session
     sessionCookieMaxAgeSeconds: 64800
     oidcRevokeRefreshTokenOnLogout: true
-    oidcRefreshTokenFallbackTtlSeconds: "2592000"
+    oidcRefreshTokenFallbackTtlSeconds: 2592000
   neo4j:
     uri: bolt://neo4j:7687
+    # WARNING, INFORMATION, or OFF. Quote OFF -- unquoted, YAML reads it as a
+    # boolean (the chart maps it back, but the quoted form is unambiguous).
     notificationsMinSeverity: WARNING
     maxConnectionLifetime: 3600
     connectionTimeout: 10
     queryTimeout: 30
+    # Process-wide cache of the introspected graph schema; 0 disables caching.
+    schemaCacheTtlSeconds: 300
   queryValidator:
     allowedProcedures: []
+  # Application storage. Seizu 5 requires PostgreSQL; the DynamoDB backends and
+  # the REPORT_STORE_BACKEND selector are gone, and startup refuses them.
   reportStore:
-    backend: dynamodb
     # Unique 0-1023 value per replica when multiple instances may generate IDs.
     snowflakeMachineId: 1
-    dynamodb:
-      tableName: seizu-reports
-      region: us-east-1
-      endpointUrl: ""
-      createTable: false
-    # Keep credentials out of this URL and provide them through
-    # secrets.data.sqlDatabaseUser / secrets.data.sqlDatabasePassword.
+    # PostgreSQL URL for Seizu's application records. Keep credentials out of
+    # this URL and provide them through secrets.data.sqlDatabaseUser /
+    # secrets.data.sqlDatabasePassword.
+    # Example: postgresql://postgres.default.svc.cluster.local:5432/seizu
     sqlDatabaseUrl: ""
   rbac:
     roleClaim: seizu_role
@@ -107,6 +131,16 @@ seizu:
     host: ""
     port: 8125
     constantTags: []
+  # OTLP tracing of turns, plan steps, model calls and tool calls. Inert until
+  # otlpEndpoint is set. Collector credentials go in
+  # secrets.data.telemetryOtlpHeaders (comma-separated k=v pairs).
+  telemetry:
+    enabled: true
+    otlpEndpoint: ""
+    serviceName: seizu
+    # Spans carry prompts, results and tool output. Off by default: those
+    # contain graph rows and the user's own words.
+    recordContent: false
   mcp:
     enabled: true
     enabledBuiltins: []
@@ -115,8 +149,43 @@ seizu:
     oauthTokenEndpoint: ""
     resourceUrl: ""
     oauthRegistrationEndpoint: ""
-  # LangGraph-backed chat assistant. Disabled by default; enabling it requires
-  # an LLM provider (chat.llm) and checkpoint storage (chat.checkpoint).
+    # Bounds on a single non-chat MCP tool result. Far above the chat caps
+    # (seizu.chat.toolResultMax*), which exist to protect a model's context.
+    toolResultMaxRows: 50000
+    toolResultMaxBytes: 25000000
+    # Plan inspection for the generic graph__query tool. REST queries and
+    # Cypher-backed toolset tools are unaffected. New in Seizu 5.1.0: a query
+    # that used to run may now be rejected with query_plan_rejected. Must match
+    # on the web service and the Temporal worker.
+    graphQuery:
+      rejectUnindexed: true
+      # 0 rejects every non-index scan.
+      unindexedMaxEstimatedRows: 100000
+    # External MCP servers reached through an identity-aware proxy.
+    external:
+      enabled: false
+      # JSON-serialized verbatim into MCP_EXTERNAL_PROXIES. Keys are the
+      # upstream snake_case field names (name, url, upstream_urls, transport,
+      # auth_mode, header_mappings, token_env, require_confirmation, enabled,
+      # connect_timeout_seconds); unknown keys are rejected at startup.
+      # A proxy's credential is named by token_env, never embedded here:
+      # supply that variable through secrets.extraData or extraEnvFrom.
+      proxies: []
+      # How an Agent Plugin's mcp: dependency binds to a proxy:
+      # "none" (ignore the package URL), "lax", or "strict".
+      pluginUrlMatchMode: none
+      # Cross-turn reuse of a proxy's discovered tool listing, per user.
+      # 0 (default) disables the cache.
+      discoveryTtlSeconds: 0
+      # Fully namespaced external tools that always require confirmation.
+      confirmationRequiredTools: []
+      rateLimitRetries: 2
+      rateLimitMaxWaitSeconds: 60
+      rateLimitDefaultWaitSeconds: 5
+  # LangGraph-backed chat assistant. Disabled by default. Enabling it requires
+  # an LLM provider (chat.llm), a PostgreSQL checkpoint database
+  # (chat.checkpoint) and a reachable Temporal server (seizu.temporal): every
+  # turn runs as a Temporal workflow, so chat cannot admit a turn without one.
   chat:
     enabled: false
     llm:
@@ -124,7 +193,8 @@ seizu:
       # Any other value routes through LiteLLM; prefer "litellm" with a
       # provider-namespaced model (e.g. "anthropic/claude-sonnet-4-5").
       provider: mock
-      # LiteLLM model identifier. Required whenever provider is not "mock".
+      # LiteLLM model identifier. Required whenever provider is not "mock" and
+      # no enabled default model profile supplies one.
       model: ""
       # Optional API key via secrets.data.chatLlmApiKey, or the per-provider
       # keys (secrets.data.anthropicApiKey, openaiApiKey, ...).
@@ -132,7 +202,11 @@ seizu:
       # self-hosted LiteLLM proxy or other gateway.
       baseUrl: ""
       temperature: 0.2
-      maxTokens: 4096
+      # Per-call output token cap. 0 derives it from the model, bounded by
+      # maxOutputTokensCap. Pinning this (e.g. the old 4096) starves the
+      # planner on a reasoning model and collapses every plan to one step.
+      maxTokens: 0
+      maxOutputTokensCap: 32768
       timeoutSeconds: 60
       maxRetries: 2
       # Auto-continuation of responses truncated by the output-token limit.
@@ -140,83 +214,196 @@ seizu:
       # ceiling on the stitched length (0 disables it).
       maxContinuations: 2
       maxResponseChars: 60000
-      # Prior messages/characters sent to the LLM per turn.
+      # Prior messages/tokens sent to the LLM per turn. Context is budgeted in
+      # tokens against the model's own window (contextMaxChars is gone).
       contextMaxMessages: 80
-      contextMaxChars: 120000
+      contextMaxTokens: 40000
+      # Share of the model's input window history may occupy, the window
+      # override (0 derives it from LiteLLM), the window assumed for a model
+      # LiteLLM does not know, and the fraction held back when sizing a call.
+      contextWindowShare: 0.5
+      contextWindowTokens: 0
+      contextWindowFallbackTokens: 32768
+      contextSafetyMargin: 0.05
+      # Explicit prompt-cache breakpoints for providers that need them.
+      promptCacheEnabled: true
+      promptCacheMinTokens: 1024
+      # Log which part of a request changed since the previous call of the same
+      # kind. A debugging aid; it token-counts every component of every call.
+      cacheDiagnostics: false
+      # Condense the oldest turns of a long conversation instead of dropping
+      # them. compactionTarget is how far back a compaction cuts, as a fraction
+      # of the history budget.
+      historyCompaction: true
+      historyCompactionTarget: 0.5
+      historySummaryMaxTokens: 1500
+      # Disclose the tools a plan step's skills declare from the start of the
+      # step, while that declaration stays under the token ceiling below.
+      discloseSkillTools: true
+      discloseSkillToolsMaxTokens: 6000
       # Optional full system prompt override.
       systemPrompt: ""
       progressiveDisclosure: true
       # Bounds on model-requested tool/skill calls per assistant turn.
       maxAutoActions: 12
       maxParallelToolCalls: 4
-      # Optional role-specific model overrides; empty values inherit llm.model.
+      # Optional stage-specific model overrides; empty values inherit
+      # llm.model (routerModel inherits plannerModel, workerSummaryModel
+      # inherits workerModel). A model profile overrides these per stage.
+      routerModel: ""
       plannerModel: ""
       workerModel: ""
+      workerSummaryModel: ""
       verifierModel: ""
       synthesizerModel: ""
       # Used for eligible read-only work after the run's soft budget limit.
       economyModel: ""
+      # How much of the output allowance a reasoning model may spend thinking:
+      # "default", "none", "minimal", "low", "medium", "high", "xhigh", or
+      # empty for the provider's default. Empty stage values inherit
+      # reasoningEffort (workerSummary and sandbox inherit worker).
+      reasoningEffort: ""
+      routerReasoningEffort: none
+      plannerReasoningEffort: low
+      workerReasoningEffort: ""
+      workerSummaryReasoningEffort: ""
+      verifierReasoningEffort: ""
+      sandboxReasoningEffort: ""
+      synthesizerReasoningEffort: low
     # Plan -> dispatch -> verify orchestration for complex chat requests.
     orchestrator:
       enabled: true
       maxSteps: 8
-      plannerMaxTokens: 4096
+      # 0 derives the planner's output ceiling from the model.
+      plannerMaxTokens: 0
       maxIterations: 3
-      maxParallel: 3
+      # Steps one mapped step may expand into once its items are known.
+      maxExpansion: 8
+      maxParallel: 8
+      # Compatibility guard for runs with every shared budget dimension off.
       workerMaxActions: 24
-    # Per-turn budget shared by interactive and scheduled runs. A zero token
-    # or cost limit disables that dimension.
+      workerFinalizeRetries: 2
+      # Consecutive tool calls with nothing new before a step is stopped.
+      stuckCallWindow: 8
+      # Multiple of the planner's per-step token estimate at which a step is
+      # stopped and asked to summarize, and how far past its fair share of the
+      # remaining run budget a step may go before it is stopped outright.
+      stepBudgetOverrun: 12.0
+      stepShareHardMultiple: 3.0
+      # Context budgets, in characters.
+      dependencyContextMaxChars: 16000
+      plannerContextMaxChars: 6000
+      workerContextMaxChars: 2000
+      synthesisEvidenceMaxChars: 12000
+      synthesisStepMaxChars: 12000
+      # Run each independent plan step of a batch as its own Temporal activity,
+      # placing steps across the worker fleet. Interactive turns only.
+      distributed:
+        enabled: true
+        minSteps: 2
+        stepTimeoutSeconds: 600
+        # Larger serialized step results go to the report store by reference.
+        inlineMaxBytes: 262144
+    # Per-turn budget shared by interactive and scheduled runs. A run is
+    # budgeted in cost; the token ceiling is the backstop for a model LiteLLM
+    # cannot price. A zero token or cost limit disables that dimension.
     run:
-      tokenBudget: 120000
-      costBudgetUsd: 0
+      # 0 derives it: no token ceiling when a cost budget is set and the model
+      # is priced, unpricedTokenBudget when it is not.
+      tokenBudget: 0
+      unpricedTokenBudget: 2000000
+      # Estimated provider spend one run may reach, in USD. Set 0 for a gateway
+      # or custom model whose pricing LiteLLM does not know.
+      costBudgetUsd: 2.0
       reservePercent: 20
       softLimitPercent: 75
-      maxLlmCalls: 64
-    # LangGraph checkpoint storage: "dynamodb" (default) or "postgres".
+      # Emergency loop guard. 0 derives it from the plan using the per-step
+      # ceilings below; set both to 0 to disable the dimension.
+      maxLlmCalls: 0
+      llmCallsPerStep: 96
+      unpricedLlmCallsPerStep: 24
+      # Output tokens assumed for a call whose kind has not been seen yet, the
+      # multiple of the observed average a reservation carries, and how long a
+      # call waits when the run's remaining budget is reserved in flight.
+      outputEstimateTokens: 4096
+      outputEstimateSafety: 1.5
+      contentionWaitSeconds: 30.0
+    # What earlier sub-agents and earlier turns carry forward, so a step does
+    # not re-derive ground already covered. Set a max-chars value to 0 to
+    # disable that carry.
+    memory:
+      episodicRecallMaxChars: 4000
+      episodicMaxEntries: 20
+      sessionMaxEntries: 30
+      sessionMaxReceipts: 40
+      sessionDigestMaxChars: 2000
+    # LangGraph checkpoint storage. PostgreSQL only in Seizu 5; a dedicated
+    # database is recommended so checkpoint migrations, retention and backups
+    # stay isolated from application records.
     checkpoint:
-      backend: dynamodb
-      # PostgreSQL URL used when backend=postgres; defaults to the report
-      # store's sqlDatabaseUrl when empty. Keep credentials out of the URL and
-      # use secrets.data.chatCheckpointDatabaseUser / ...Password instead.
+      # Empty defaults to the report store's sqlDatabaseUrl. Keep credentials
+      # out of the URL and use secrets.data.chatCheckpointDatabaseUser /
+      # ...Password instead.
       databaseUrl: ""
+      # Create or migrate the checkpoint schema at startup.
+      createTable: false
       poolMinSize: 1
       poolMaxSize: 10
-      # DynamoDB-only settings.
-      tableName: seizu-chat-checkpoints
-      createTable: false
-      ttlSeconds: 0
-      enableCompression: true
-      # S3 offload for checkpoint payloads larger than 350KB.
-      s3Bucket: ""
-      s3EndpointUrl: ""
-      s3KeyPrefix: seizu/langgraph
+    # An interactive turn runs as a Temporal workflow and is streamed from an
+    # append-only event log.
+    turn:
+      timeoutSeconds: 900
+      # How long a finished turn's event log stays replayable.
+      retentionSeconds: 600
+      streamLatencyMs: 200
+    # Recurring headless agent runs managed from the chat UI. Reconciled into
+    # Temporal Schedules by the temporal worker; there is no separate worker
+    # deployment. Requires seizu.chat.enabled=true.
+    schedules:
+      enabled: true
+      timeoutSeconds: 600
+    # Retire chat sessions nobody has come back to, destroying the suspended
+    # sandbox each one holds. THIS DELETES CHAT HISTORY, transcript included,
+    # and the first sweep after enabling it collects everything already past
+    # the threshold. Runs as a Temporal Schedule, so it needs a worker.
+    sessionReap:
+      enabled: false
+      idleSeconds: 2592000
+      intervalSeconds: 3600
     maxPersistedMessages: 200
     historyLimit: 100
     # Caps on single MCP tool-call results returned to chat.
     toolResultMaxRows: 100
     toolResultMaxBytes: 200000
-  # Temporal server connection, used by the web service (workflow run
-  # visibility), the scheduled-query temporal action, and the temporal worker.
+  # Temporal server connection, used by the web service (turn admission and
+  # workflow run visibility) and the temporal worker. Seizu 5 runs interactive
+  # chat turns, scheduled chats, workflows and the session reaper on Temporal;
+  # this chart does not deploy a Temporal server.
   temporal:
     address: localhost:7233
     namespace: default
     taskQueue: seizu-workflows
-    # Cap on scheduled-query result rows forwarded into a workflow.
+    # Activity slots per worker process: the cluster-wide bound on distributed
+    # chat plan steps. Size it for the fleet before enabling distributed steps
+    # at scale -- chat.orchestrator.maxParallel bounds one turn, this bounds
+    # every turn at once.
+    maxConcurrentActivities: 100
+    # Cap on query result rows forwarded into a workflow.
     workflowMaxResultRows: 200
-    # Allowlist of workflows the temporal scheduled-query action may start
-    # (e.g. [cve_repo_report]). Empty -> all registered workflows.
+    # Allowlist of workflows the temporal action may start (e.g.
+    # [cve_repo_report]). Empty -> all registered workflows.
     enabledWorkflows: []
     # Per-repository AI chat activity timeout for workflows.
     chatActivityTimeoutSeconds: 600
-  # Temporal-backed configurable workflows. In Seizu 4, these replace
-  # scheduled queries as the primary scheduling and automation interface.
+  # Temporal-backed configurable workflows. These are the scheduling and
+  # automation interface; scheduled queries are projected into workflows.
   workflows:
     activityModules:
       - reporting.scheduled_query_modules.sqs
       - reporting.scheduled_query_modules.slack
       - reporting.scheduled_query_modules.statsd
     queryMaxRows: 200
-    resultMaxBytes: "1000000"
+    resultMaxBytes: 1000000
     watchPollSeconds: 20
     reconcileSeconds: 30
   # Cartography workflow orchestration settings used by the web and Temporal
@@ -240,7 +427,42 @@ seizu:
     # Hard timeout for a single sandbox__delegate invocation.
     timeoutSeconds: 120
     maxOutputBytes: 50000
-    # LiteLLM model id for the sandbox subagent; empty inherits chat.llm.model.
+    # Tools bound to every delegation regardless of progressive disclosure.
+    # Each is still intersected with the caller's permitted tools. Set to []
+    # to bind nothing up front.
+    coreTools:
+      - graph__query
+      - graph__schema
+      - graph__validate_query
+      - graph__explain
+    # Let the chat agent use the conversation's sandbox directly, not only
+    # through sandbox__delegate.
+    directToolsEnabled: true
+    # Timeout for one Agent Plugin script inside the sandbox.
+    scriptTimeoutSeconds: 60
+    # Bytes of a sandbox file a sub-agent may pull into context. 0 replaces
+    # preview_file with read_file, capped at maxOutputBytes.
+    previewMaxBytes: 2000
+    # Lifetime of the sandbox shared by a turn's delegations, and whether it is
+    # suspended between turns (keeping full VM state, memory included) so a
+    # follow-up turn reads files earlier turns wrote.
+    sessionTimeoutSeconds: 1800
+    sessionPersist: true
+    # Also collect suspended sandboxes tagged for another deployment, or not
+    # tagged at all. Only safe when these credentials are this deployment's
+    # alone; see seizu.deploymentId.
+    reapUntagged: false
+    # Cumulative tokens one delegation may return inline before the rest is
+    # written to sandbox files instead. 0 keeps only the per-call triggers.
+    inlineResultBudgetTokens: 60000
+    # Consecutive already-answered calls before a delegation is told to report
+    # what it has.
+    stuckRepeatLimit: 3
+    # Caps for a sub-agent tool result written to a sandbox file.
+    fileResultMaxRows: 50000
+    fileResultMaxBytes: 10000000
+    # LiteLLM model id for the sandbox subagent; empty inherits the worker
+    # model, then chat.llm.model.
     llmModel: ""
     # Headless coding-agent CLI run inside a sandbox (used by the
     # cve_dependency_remediation workflow).
@@ -265,6 +487,13 @@ seizu:
       credentialProxyEnabled: false
       # Max spend (USD) on the per-run virtual key.
       credentialProxyMaxBudget: "5"
+      # Hash-locked requirement file the proxy sandbox installs when no
+      # template is set; empty uses Seizu's checked-in lock. Mount your own
+      # with extraVolumes/extraVolumeMounts.
+      credentialProxyRequirementsFile: ""
+      # E2B template for the proxy sandbox. Set -> used as built, with nothing
+      # installed and nothing checked.
+      credentialProxyTemplate: ""
   # CVE dependency remediation (cve_dependency_remediation workflow). Enabled
   # by configuration: it runs only when secrets.data.remediationGithubToken and
   # a sandbox-agent API key are set.
@@ -325,6 +554,13 @@ secrets:
     # GitHub token for the remediation workflow's setup/push phases and CI
     # watch. Configured = the workflow is enabled.
     remediationGithubToken: ""
+    # Comma-separated k=v pairs authenticating to the OTLP collector.
+    telemetryOtlpHeaders: ""
+  # Arbitrary additional keys written into the same Secret, verbatim. Use for
+  # credentials the chart has no named field for -- the token_env variables
+  # named by seizu.mcp.external.proxies, scheduled-query action module
+  # credentials, cloud SDK keys.
+  extraData: {}
 
 service:
   type: ClusterIP
@@ -369,43 +605,11 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: null
 
-scheduledQueries:
-  enabled: false
-  replicaCount: 1
-  command:
-    - python
-    - -m
-    - reporting.scheduled_queries
-  frequency: 20
-  resources: {}
-  podAnnotations: {}
-  podLabels: {}
-  extraEnv: []
-  extraEnvFrom: []
-
-# Scheduled chats worker (recurring headless agent runs managed from the chat
-# UI). Enabling it also enables the API routes and the frontend UI. Requires
-# seizu.chat.enabled=true.
-scheduledChats:
-  enabled: false
-  replicaCount: 1
-  command:
-    - python
-    - -m
-    - reporting.scheduled_chats
-  # How often the worker polls for due schedules.
-  pollSeconds: 20
-  # Timeout for one scheduled headless agent session.
-  timeoutSeconds: 600
-  resources: {}
-  podAnnotations: {}
-  podLabels: {}
-  extraEnv: []
-  extraEnvFrom: []
-
-# Temporal worker hosting Seizu's workflow and activity code (used by the
-# temporal scheduled-query action). Requires a reachable Temporal server
-# (seizu.temporal.address); this chart does not deploy Temporal.
+# Temporal worker hosting Seizu's workflow and activity code. In Seizu 5 it
+# owns interactive chat turns, distributed plan steps, scheduled chats,
+# configurable workflows and the chat session reaper, so enable it for
+# anything beyond a read-only web deployment. Requires a reachable Temporal
+# server (seizu.temporal.address); this chart does not deploy Temporal.
 temporalWorker:
   enabled: false
   replicaCount: 1
@@ -429,7 +633,7 @@ cartographyWorker:
   image:
     repository: ghcr.io/mappedsky/seizu-cartography
     pullPolicy: IfNotPresent
-    # Empty follows Chart.appVersion (4.2.0.dev1).
+    # Empty follows Chart.appVersion (5.1.0).
     tag: ""
   # Empty uses the image's default: python -m cartography_sync.worker.
   command: []

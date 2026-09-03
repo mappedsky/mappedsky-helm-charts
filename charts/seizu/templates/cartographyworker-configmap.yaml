@@ -7,14 +7,14 @@ metadata:
     {{- include "seizu.labels" . | nindent 4 }}
     app.kubernetes.io/component: cartography-worker
 data:
-  TEMPORAL_ADDRESS: {{ .Values.seizu.temporal.address | quote }}
-  TEMPORAL_NAMESPACE: {{ .Values.seizu.temporal.namespace | quote }}
-  CARTOGRAPHY_TASK_QUEUE: {{ .Values.seizu.cartography.taskQueue | quote }}
+  TEMPORAL_ADDRESS: {{ include "seizu.envValue" .Values.seizu.temporal.address }}
+  TEMPORAL_NAMESPACE: {{ include "seizu.envValue" .Values.seizu.temporal.namespace }}
+  CARTOGRAPHY_TASK_QUEUE: {{ include "seizu.envValue" .Values.seizu.cartography.taskQueue }}
   CARTOGRAPHY_ENABLED_MODULES: {{ join "," .Values.seizu.cartography.enabledModules | quote }}
-  CARTOGRAPHY_NEO4J_URI: {{ default .Values.seizu.neo4j.uri .Values.cartographyWorker.neo4jUri | quote }}
+  CARTOGRAPHY_NEO4J_URI: {{ include "seizu.envValue" (default .Values.seizu.neo4j.uri .Values.cartographyWorker.neo4jUri) }}
   {{- range $name, $value := .Values.cartographyWorker.config }}
   {{- if ne (toString $value) "" }}
-  {{ $name }}: {{ $value | quote }}
+  {{ $name }}: {{ include "seizu.envValue" $value }}
   {{- end }}
   {{- end }}
 {{- end }}
