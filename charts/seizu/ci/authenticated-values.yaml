@@ -1,0 +1,16 @@
+# The chart's default posture: authentication required. Values here are
+# placeholders for rendering only -- generate real ones per deployment with
+# `openssl rand -hex 64` and `openssl rand -base64 32`.
+seizu:
+  neo4j:
+    uri: bolt://neo4j.default.svc.cluster.local:7687
+  reportStore:
+    sqlDatabaseUrl: postgresql://postgres.default.svc.cluster.local:5432/seizu
+  auth:
+    oidcAuthority: https://idp.example.com/application/o/seizu/
+    oidcClientId: seizu
+    jwksUrl: https://idp.example.com/application/o/seizu/jwks/
+secrets:
+  data:
+    reportQuerySigningSecret: placeholder-not-a-real-secret
+    sessionTokenEncryptionKey: cGxhY2Vob2xkZXItbm90LWEtcmVhbC1rZXktMDAwMA==

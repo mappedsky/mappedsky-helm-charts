@@ -21,21 +21,26 @@ Charts are published as OCI artifacts to GitHub Container Registry under
 
 ```sh
 helm install seizu oci://ghcr.io/mappedsky/charts/seizu \
-  --version 0.3.2 \
-  --set seizu.neo4j.uri=bolt://neo4j.default.svc.cluster.local:7687
+  --version 0.4.0 \
+  --set seizu.neo4j.uri=bolt://neo4j.default.svc.cluster.local:7687 \
+  --set seizu.reportStore.sqlDatabaseUrl=postgresql://postgres.default.svc.cluster.local:5432/seizu
 ```
 
 Or install from this repository checkout:
 
 ```sh
 helm install seizu ./charts/seizu \
-  --set seizu.neo4j.uri=bolt://neo4j.default.svc.cluster.local:7687
+  --set seizu.neo4j.uri=bolt://neo4j.default.svc.cluster.local:7687 \
+  --set seizu.reportStore.sqlDatabaseUrl=postgresql://postgres.default.svc.cluster.local:5432/seizu
 ```
 
 Seizu expects these external dependencies:
 
-- A reachable Neo4j instance. The chart does not deploy Neo4j by default.
-- A report-store backend. By default this is DynamoDB, configured with `seizu.reportStore.dynamodb.tableName`, `seizu.reportStore.dynamodb.region`, and optionally `seizu.reportStore.dynamodb.endpointUrl`. To use SQL instead, set `seizu.reportStore.backend=sqlmodel` and provide `seizu.reportStore.sqlDatabaseUrl`.
+- A reachable Neo4j instance. The chart does not deploy Neo4j.
+- PostgreSQL. Seizu 5 keeps every application record there and has no other backend; set `seizu.reportStore.sqlDatabaseUrl` and supply credentials through `secrets.data.sqlDatabaseUser` / `secrets.data.sqlDatabasePassword`. Chat additionally wants its own LangGraph checkpoint database (`seizu.chat.checkpoint.databaseUrl`).
+- A Temporal server, for anything beyond a read-only web deployment. Chat turns, scheduled chats and configurable workflows all execute as Temporal workflows. The chart does not deploy Temporal; point `seizu.temporal.address` at one and set `temporalWorker.enabled=true`.
+
+See the [chart README](charts/seizu/README.md) for the full configuration surface and the 4.x -> 5.x upgrade notes.
 
 ## Development
 
@@ -69,10 +74,10 @@ git push origin seizu-v0.1.0
 Already-published versions are skipped, so both paths are safe to re-run.
 
 Development chart releases use a semantic-version prerelease suffix and must be
-installed explicitly. For example, a chart with version `0.3.3-dev.1` is
-released with tag `seizu-v0.3.3-dev.1` and installed with:
+installed explicitly. For example, a chart with version `0.4.1-dev.1` is
+released with tag `seizu-v0.4.1-dev.1` and installed with:
 
 ```sh
 helm install seizu oci://ghcr.io/mappedsky/charts/seizu \
-  --version 0.3.3-dev.1
+  --version 0.4.1-dev.1
 ```
