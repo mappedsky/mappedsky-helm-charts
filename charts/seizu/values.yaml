@@ -117,8 +117,6 @@ seizu:
   # Application storage. Seizu 5 requires PostgreSQL; the DynamoDB backends and
   # the REPORT_STORE_BACKEND selector are gone, and startup refuses them.
   reportStore:
-    # Unique 0-1023 value per replica when multiple instances may generate IDs.
-    snowflakeMachineId: 1
     # PostgreSQL URL for Seizu's application records. Keep credentials out of
     # this URL and provide them through secrets.data.sqlDatabaseUser /
     # secrets.data.sqlDatabasePassword.
@@ -633,7 +631,7 @@ cartographyWorker:
   image:
     repository: ghcr.io/mappedsky/seizu-cartography
     pullPolicy: IfNotPresent
-    # Empty follows Chart.appVersion (5.1.0).
+    # Empty follows Chart.appVersion (5.2.0).
     tag: ""
   # Empty uses the image's default: python -m cartography_sync.worker.
   command: []
