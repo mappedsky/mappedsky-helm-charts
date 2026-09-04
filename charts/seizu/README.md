@@ -2,7 +2,7 @@
 
 This chart deploys [Seizu](https://github.com/mappedsky/seizu), a React and Python frontend for Neo4j security graph data.
 
-Chart `0.4.0` tracks Seizu `5.1.0`.
+Chart `0.5.0` tracks Seizu `5.2.0`.
 
 ## Install
 
@@ -75,6 +75,7 @@ Read Seizu's own [upgrade guide](https://github.com/mappedsky/seizu/blob/main/do
 | `seizu.chat.llm.contextMaxChars` | `seizu.chat.llm.contextMaxTokens` (default 40,000). Context is budgeted in tokens against the model's own window. |
 | `scheduledChats.*` (worker Deployment) | `seizu.chat.schedules.*`. Scheduled chats are reconciled into Temporal Schedules by `temporalWorker`; `python -m reporting.scheduled_chats` no longer exists. |
 | `scheduledQueries.*` (worker Deployment) | `seizu.workflows.*`. Scheduled queries are projected into workflows and executed by `temporalWorker`. Running the old poll loop alongside it would dispatch every action twice. |
+| `seizu.reportStore.snowflakeMachineId` | None. Seizu 5.2.0 generates record ids as UUIDv7, which needs no per-replica coordination. |
 
 Seizu's startup **refuses** `REPORT_STORE_BACKEND`, `CHAT_CHECKPOINT_BACKEND` and the removed DynamoDB/S3 settings, even holding their old SQL-selecting values, so leaving them in a values file fails the pod rather than being ignored.
 
@@ -93,6 +94,10 @@ A value carried over from a 4.x values file still pins the old intent:
 - `seizu.chat.llm.routerModel` and `seizu.chat.llm.workerSummaryModel` give those two stages their own deployment models.
 - `seizu.chat.llm.model` is no longer required when an enabled default model profile supplies a complete model snapshot. Startup now validates every enabled profile's model ids, on the Temporal worker too — a worker configured with a model LiteLLM cannot resolve refuses to start.
 - Model profiles seed and export as ordinary configuration (`model_profiles:` in a seed file, applied with `seizu seed`). The chart does not seed configuration; run the CLI against the deployed API.
+
+### New in 5.2.0
+
+- `seizu.reportStore.snowflakeMachineId` is removed. Seizu now generates record ids as UUIDv7 rather than Snowflake ids, so nothing has to be unique per replica any more and `SNOWFLAKE_MACHINE_ID` is no longer read. Unlike the 5.0.0 storage settings, an unknown environment variable is ignored rather than refused, so a values file still carrying the key deploys — it just does nothing. Ids generated before the upgrade are untouched.
 
 ## Chat assistant
 
@@ -164,7 +169,7 @@ helm upgrade --install seizu ./charts/seizu \
   --set-string cartographyWorker.secrets.data.CARTOGRAPHY_NIST_NVD_TOKEN=<key>
 ```
 
-The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.1.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
+The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.2.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
 
 - `seizu.cartography.*` configures the task queue, module allowlist, module timeout/wait, and retry count used by the web and Temporal workers.
 - `cartographyWorker.neo4jUri` defaults to `seizu.neo4j.uri`. Neo4j credentials belong in `cartographyWorker.secrets.data.CARTOGRAPHY_NEO4J_USER` and `CARTOGRAPHY_NEO4J_PASSWORD`.

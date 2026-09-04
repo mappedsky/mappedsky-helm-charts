@@ -68,7 +68,6 @@ data:
   NEO4J_QUERY_TIMEOUT: {{ include "seizu.envValue" .Values.seizu.neo4j.queryTimeout }}
   GRAPH_SCHEMA_CACHE_TTL_SECONDS: {{ include "seizu.envValue" .Values.seizu.neo4j.schemaCacheTtlSeconds }}
   QUERY_VALIDATOR_ALLOWED_PROCEDURES: {{ join "," .Values.seizu.queryValidator.allowedProcedures | quote }}
-  SNOWFLAKE_MACHINE_ID: {{ include "seizu.envValue" .Values.seizu.reportStore.snowflakeMachineId }}
   SQL_DATABASE_URL: {{ include "seizu.envValue" .Values.seizu.reportStore.sqlDatabaseUrl }}
   RBAC_ROLE_CLAIM: {{ include "seizu.envValue" .Values.seizu.rbac.roleClaim }}
   RBAC_DEFAULT_ROLE: {{ include "seizu.envValue" .Values.seizu.rbac.defaultRole }}
