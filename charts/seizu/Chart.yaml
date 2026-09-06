@@ -2,8 +2,8 @@ apiVersion: v2
 name: seizu
 description: A Helm chart for Seizu, a React and Python frontend for Neo4j security graph data.
 type: application
-version: 0.5.0
-appVersion: "5.2.0"
+version: 0.6.0
+appVersion: "5.3.0"
 home: https://mappedsky.github.io/seizu/
 sources:
   - https://github.com/mappedsky/seizu

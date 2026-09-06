@@ -2,7 +2,7 @@
 
 This chart deploys [Seizu](https://github.com/mappedsky/seizu), a React and Python frontend for Neo4j security graph data.
 
-Chart `0.5.0` tracks Seizu `5.2.0`.
+Chart `0.6.0` tracks Seizu `5.3.0`.
 
 ## Install
 
@@ -99,6 +99,11 @@ A value carried over from a 4.x values file still pins the old intent:
 
 - `seizu.reportStore.snowflakeMachineId` is removed. Seizu now generates record ids as UUIDv7 rather than Snowflake ids, so nothing has to be unique per replica any more and `SNOWFLAKE_MACHINE_ID` is no longer read. Unlike the 5.0.0 storage settings, an unknown environment variable is ignored rather than refused, so a values file still carrying the key deploys — it just does nothing. Ids generated before the upgrade are untouched.
 
+### New in 5.3.0
+
+- No configuration changes: 5.3.0 adds, removes and renames nothing the chart renders.
+- **Upgrade from 5.2.0 if chat is enabled.** 5.2.0's UUIDv7 ids were rejected by the chat routes' own validation, which still required the digits-only Snowflake shape. Every session created on 5.2.0 answered `422` to its own rename and to turn admission, so chat was unusable; sessions created before the 5.2.0 upgrade kept working. Nothing needs to be rewritten — both id shapes are accepted.
+
 ## Chat assistant
 
 The chat assistant is disabled by default. Every turn runs as a Temporal workflow and is streamed from an append-only event log, so enabling it requires an LLM provider, a PostgreSQL checkpoint database, and a reachable Temporal server with a worker:
@@ -169,7 +174,7 @@ helm upgrade --install seizu ./charts/seizu \
   --set-string cartographyWorker.secrets.data.CARTOGRAPHY_NIST_NVD_TOKEN=<key>
 ```
 
-The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.2.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
+The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.3.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
 
 - `seizu.cartography.*` configures the task queue, module allowlist, module timeout/wait, and retry count used by the web and Temporal workers.
 - `cartographyWorker.neo4jUri` defaults to `seizu.neo4j.uri`. Neo4j credentials belong in `cartographyWorker.secrets.data.CARTOGRAPHY_NEO4J_USER` and `CARTOGRAPHY_NEO4J_PASSWORD`.
