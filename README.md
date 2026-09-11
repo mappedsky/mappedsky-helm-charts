@@ -21,7 +21,7 @@ Charts are published as OCI artifacts to GitHub Container Registry under
 
 ```sh
 helm install seizu oci://ghcr.io/mappedsky/charts/seizu \
-  --version 0.6.0 \
+  --version 0.7.0 \
   --set seizu.neo4j.uri=bolt://neo4j.default.svc.cluster.local:7687 \
   --set seizu.reportStore.sqlDatabaseUrl=postgresql://postgres.default.svc.cluster.local:5432/seizu
 ```

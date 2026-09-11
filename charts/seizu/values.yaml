@@ -136,9 +136,15 @@ seizu:
     enabled: true
     otlpEndpoint: ""
     serviceName: seizu
-    # Spans carry prompts, results and tool output. Off by default: those
-    # contain graph rows and the user's own words.
+    # Spans carry model results and tool input/output. Off by default: those
+    # can contain graph rows and the user's own words.
     recordContent: false
+    # System prompts, model inputs and rendered skill bodies have a separate,
+    # more sensitive opt-in.
+    recordPrompts: false
+    # Maximum characters in each content-bearing span attribute. 0 records no
+    # content even when either recording option is enabled.
+    contentMaxChars: 20000
   mcp:
     enabled: true
     enabledBuiltins: []
@@ -147,6 +153,12 @@ seizu:
     oauthTokenEndpoint: ""
     resourceUrl: ""
     oauthRegistrationEndpoint: ""
+    # How elicitation-capable MCP clients handle action confirmations: "url"
+    # (the default), "form", "permission", or "off". URL keeps the decision
+    # on Seizu's signed-in confirmation page; form trusts the client to obtain
+    # it. Clients without the selected capability receive the existing content
+    # response.
+    confirmationElicitationMode: url
     # Bounds on a single non-chat MCP tool result. Far above the chat caps
     # (seizu.chat.toolResultMax*), which exist to protect a model's context.
     toolResultMaxRows: 50000
@@ -164,10 +176,12 @@ seizu:
       enabled: false
       # JSON-serialized verbatim into MCP_EXTERNAL_PROXIES. Keys are the
       # upstream snake_case field names (name, url, upstream_urls, transport,
-      # auth_mode, header_mappings, token_env, require_confirmation, enabled,
-      # connect_timeout_seconds); unknown keys are rejected at startup.
-      # A proxy's credential is named by token_env, never embedded here:
-      # supply that variable through secrets.extraData or extraEnvFrom.
+      # protocol_mode, auth_mode, header_mappings, token_env,
+      # client_credentials, user_authorization, require_confirmation, enabled,
+      # connect_timeout_seconds, read_timeout_seconds); unknown keys are
+      # rejected at startup. Credentials are named by token_env or
+      # client_credentials.client_secret_env, never embedded here: supply that
+      # variable through secrets.extraData or extraEnvFrom.
       proxies: []
       # How an Agent Plugin's mcp: dependency binds to a proxy:
       # "none" (ignore the package URL), "lax", or "strict".
@@ -631,7 +645,7 @@ cartographyWorker:
   image:
     repository: ghcr.io/mappedsky/seizu-cartography
     pullPolicy: IfNotPresent
-    # Empty follows Chart.appVersion (5.3.0).
+    # Empty follows Chart.appVersion (5.4.0).
     tag: ""
   # Empty uses the image's default: python -m cartography_sync.worker.
   command: []

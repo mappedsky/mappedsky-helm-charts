@@ -2,7 +2,7 @@
 
 This chart deploys [Seizu](https://github.com/mappedsky/seizu), a React and Python frontend for Neo4j security graph data.
 
-Chart `0.6.0` tracks Seizu `5.3.0`.
+Chart `0.7.0` tracks Seizu `5.4.0`.
 
 ## Install
 
@@ -104,6 +104,13 @@ A value carried over from a 4.x values file still pins the old intent:
 - No configuration changes: 5.3.0 adds, removes and renames nothing the chart renders.
 - **Upgrade from 5.2.0 if chat is enabled.** 5.2.0's UUIDv7 ids were rejected by the chat routes' own validation, which still required the digits-only Snowflake shape. Every session created on 5.2.0 answered `422` to its own rename and to turn admission, so chat was unusable; sessions created before the 5.2.0 upgrade kept working. Nothing needs to be rewritten — both id shapes are accepted.
 
+### New in 5.4.0
+
+- Seizu applies two additive PostgreSQL migrations (`0012`, `0013`) at startup; no settings were removed.
+- `seizu.mcp.confirmationElicitationMode` defaults to `url`. An elicitation-capable MCP client calling a confirmation-gated tool is sent to Seizu's signed-in confirmation page. Set it to `form` to trust a client-side dialog, `permission` to use that dialog only for callers with `chat:bypass_permissions`, or `off` to return confirmation content as in earlier releases. Set the same value for the web service and Temporal worker; this chart does so through their shared ConfigMap.
+- `seizu.telemetry.recordPrompts` and `seizu.telemetry.contentMaxChars` control the new, separate prompt-tracing opt-in and the per-attribute content cap. `recordContent` now covers model results plus tool input/output only. A deployment that used `recordContent: true` to export prompts must also set `recordPrompts: true`.
+- External MCP proxy entries now accept `protocol_mode`, `client_credentials`, `user_authorization`, and `read_timeout_seconds`. Per-user gateway access through `user_authorization` is experimental; its client secret is named by `client_credentials.client_secret_env` and belongs in `secrets.extraData` or `extraEnvFrom` for both web and Temporal worker pods.
+
 ## Chat assistant
 
 The chat assistant is disabled by default. Every turn runs as a Temporal workflow and is streamed from an append-only event log, so enabling it requires an LLM provider, a PostgreSQL checkpoint database, and a reachable Temporal server with a worker:
@@ -141,7 +148,7 @@ Workflows are the scheduling and automation interface. Configure activity module
 
 ## External MCP proxies
 
-`seizu.mcp.external.proxies` is serialized verbatim into `MCP_EXTERNAL_PROXIES`, so its entries use the upstream snake_case field names and unknown keys are rejected at startup. A proxy's credential is named by `token_env` rather than embedded in the JSON — supply that variable through `secrets.extraData` or `extraEnvFrom`:
+`seizu.mcp.external.proxies` is serialized verbatim into `MCP_EXTERNAL_PROXIES`, so its entries use the upstream snake_case field names and unknown keys are rejected at startup. A proxy credential is named by `token_env` or `client_credentials.client_secret_env` rather than embedded in the JSON — supply that variable through `secrets.extraData` or `extraEnvFrom`:
 
 ```yaml
 seizu:
@@ -161,7 +168,7 @@ secrets:
 
 ## Tracing
 
-`seizu.telemetry.otlpEndpoint` turns on OTLP spans covering the turn, its dispatch batches, each plan step and every model call — the one view spanning the web service, the turn activity and the step activities it fans out to. Collector credentials go in `secrets.data.telemetryOtlpHeaders`. `seizu.telemetry.recordContent` is off by default: a trace of this system contains graph rows and the user's own words.
+`seizu.telemetry.otlpEndpoint` turns on OTLP spans covering the turn, its dispatch batches, each plan step and every model call — the one view spanning the web service, the turn activity and the step activities it fans out to. Collector credentials go in `secrets.data.telemetryOtlpHeaders`. `seizu.telemetry.recordContent` is off by default and records model results plus tool input/output when enabled. Prompts and rendered skill bodies need the separate `seizu.telemetry.recordPrompts` opt-in; `contentMaxChars` caps every content-bearing span attribute.
 
 ## Cartography sync worker
 
@@ -174,7 +181,7 @@ helm upgrade --install seizu ./charts/seizu \
   --set-string cartographyWorker.secrets.data.CARTOGRAPHY_NIST_NVD_TOKEN=<key>
 ```
 
-The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.3.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
+The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.4.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
 
 - `seizu.cartography.*` configures the task queue, module allowlist, module timeout/wait, and retry count used by the web and Temporal workers.
 - `cartographyWorker.neo4jUri` defaults to `seizu.neo4j.uri`. Neo4j credentials belong in `cartographyWorker.secrets.data.CARTOGRAPHY_NEO4J_USER` and `CARTOGRAPHY_NEO4J_PASSWORD`.
