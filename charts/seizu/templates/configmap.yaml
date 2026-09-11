@@ -78,6 +78,8 @@ data:
   TELEMETRY_OTLP_ENDPOINT: {{ include "seizu.envValue" .Values.seizu.telemetry.otlpEndpoint }}
   TELEMETRY_SERVICE_NAME: {{ include "seizu.envValue" .Values.seizu.telemetry.serviceName }}
   TELEMETRY_RECORD_CONTENT: {{ include "seizu.envValue" .Values.seizu.telemetry.recordContent }}
+  TELEMETRY_RECORD_PROMPTS: {{ include "seizu.envValue" .Values.seizu.telemetry.recordPrompts }}
+  TELEMETRY_CONTENT_MAX_CHARS: {{ include "seizu.envValue" .Values.seizu.telemetry.contentMaxChars }}
   MCP_ENABLED: {{ include "seizu.envValue" .Values.seizu.mcp.enabled }}
   MCP_ENABLED_BUILTINS: {{ join "," .Values.seizu.mcp.enabledBuiltins | quote }}
   MCP_OAUTH_ISSUER: {{ include "seizu.envValue" .Values.seizu.mcp.oauthIssuer }}
@@ -85,6 +87,7 @@ data:
   MCP_OAUTH_TOKEN_ENDPOINT: {{ include "seizu.envValue" .Values.seizu.mcp.oauthTokenEndpoint }}
   MCP_RESOURCE_URL: {{ include "seizu.envValue" .Values.seizu.mcp.resourceUrl }}
   MCP_OAUTH_REGISTRATION_ENDPOINT: {{ include "seizu.envValue" .Values.seizu.mcp.oauthRegistrationEndpoint }}
+  MCP_CONFIRMATION_ELICITATION_MODE: {{ include "seizu.envValue" .Values.seizu.mcp.confirmationElicitationMode }}
   MCP_TOOL_RESULT_MAX_ROWS: {{ include "seizu.envValue" .Values.seizu.mcp.toolResultMaxRows }}
   MCP_TOOL_RESULT_MAX_BYTES: {{ include "seizu.envValue" .Values.seizu.mcp.toolResultMaxBytes }}
   MCP_GRAPH_QUERY_REJECT_UNINDEXED: {{ include "seizu.envValue" .Values.seizu.mcp.graphQuery.rejectUnindexed }}
