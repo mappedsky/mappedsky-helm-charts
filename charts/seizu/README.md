@@ -2,7 +2,7 @@
 
 This chart deploys [Seizu](https://github.com/mappedsky/seizu), a React and Python frontend for Neo4j security graph data.
 
-Chart `0.7.0` tracks Seizu `5.4.0`.
+Chart `0.8.0` tracks Seizu `5.5.0`.
 
 ## Install
 
@@ -111,6 +111,12 @@ A value carried over from a 4.x values file still pins the old intent:
 - `seizu.telemetry.recordPrompts` and `seizu.telemetry.contentMaxChars` control the new, separate prompt-tracing opt-in and the per-attribute content cap. `recordContent` now covers model results plus tool input/output only. A deployment that used `recordContent: true` to export prompts must also set `recordPrompts: true`.
 - External MCP proxy entries now accept `protocol_mode`, `client_credentials`, `user_authorization`, and `read_timeout_seconds`. Per-user gateway access through `user_authorization` is experimental; its client secret is named by `client_credentials.client_secret_env` and belongs in `secrets.extraData` or `extraEnvFrom` for both web and Temporal worker pods.
 
+### New in 5.5.0
+
+- Seizu applies one additive PostgreSQL migration (`0014`, the `chat_elicitations` table) at startup; no settings were removed.
+- **Denied action confirmations are budgeted rather than sticky, and this applies on upgrade.** An identical denied action gets one extra prompt (`seizu.actionConfirmationDenialRetries`, default `1`; `0` restores one prompt per action). Five unexpired denials per user, source and session refuse further prompts, including calls with changed arguments (`seizu.actionConfirmationSessionDenialLimit`, default `5`, minimum `1`). The window is still `seizu.actionConfirmationTtlSeconds`.
+- External MCP servers can ask for input during a chat tool call. It is off until enabled twice: set `seizu.mcp.external.elicitationEnabled: true` (the shared ConfigMap delivers it to both the web service and Temporal worker) and add `elicitation: {form: true, url: true}` to each opted-in proxy. URL requests also require `user_authorization.reauthorize_url` on the same origin as the requested URL. Submitted form values are not redacted from tool results, so they can enter chat history and model context; credentials belong in URL elicitation. `seizu.chat.elicitation.ttlSeconds` (default `3600`, clamped 1–86400) and `seizu.chat.elicitation.maxFields` (default and ceiling `32`) bound the requests.
+
 ## Chat assistant
 
 The chat assistant is disabled by default. Every turn runs as a Temporal workflow and is streamed from an append-only event log, so enabling it requires an LLM provider, a PostgreSQL checkpoint database, and a reachable Temporal server with a worker:
@@ -181,7 +187,7 @@ helm upgrade --install seizu ./charts/seizu \
   --set-string cartographyWorker.secrets.data.CARTOGRAPHY_NIST_NVD_TOKEN=<key>
 ```
 
-The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.4.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
+The dedicated worker defaults to `ghcr.io/mappedsky/seizu-cartography:5.5.0`. It contains Cartography 0.139.0 and the thin Temporal activity worker, and does not receive the main Seizu Secret.
 
 - `seizu.cartography.*` configures the task queue, module allowlist, module timeout/wait, and retry count used by the web and Temporal workers.
 - `cartographyWorker.neo4jUri` defaults to `seizu.neo4j.uri`. Neo4j credentials belong in `cartographyWorker.secrets.data.CARTOGRAPHY_NEO4J_USER` and `CARTOGRAPHY_NEO4J_PASSWORD`.

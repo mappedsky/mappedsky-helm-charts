@@ -24,6 +24,8 @@ data:
   SEIZU_PUBLIC_URL: {{ include "seizu.envValue" .Values.seizu.publicUrl }}
   SEIZU_DEPLOYMENT_ID: {{ include "seizu.envValue" .Values.seizu.deploymentId }}
   ACTION_CONFIRMATION_TTL_SECONDS: {{ include "seizu.envValue" .Values.seizu.actionConfirmationTtlSeconds }}
+  ACTION_CONFIRMATION_DENIAL_RETRIES: {{ include "seizu.envValue" .Values.seizu.actionConfirmationDenialRetries }}
+  ACTION_CONFIRMATION_SESSION_DENIAL_LIMIT: {{ include "seizu.envValue" .Values.seizu.actionConfirmationSessionDenialLimit }}
   DEVELOPMENT_ONLY_REQUIRE_AUTH: {{ include "seizu.envValue" .Values.seizu.auth.developmentOnlyRequireAuth }}
   DEVELOPMENT_ONLY_AUTH_USER_EMAIL: {{ include "seizu.envValue" .Values.seizu.auth.developmentOnlyAuthUserEmail }}
   JWKS_URL: {{ include "seizu.envValue" .Values.seizu.auth.jwksUrl }}
@@ -93,6 +95,7 @@ data:
   MCP_GRAPH_QUERY_REJECT_UNINDEXED: {{ include "seizu.envValue" .Values.seizu.mcp.graphQuery.rejectUnindexed }}
   MCP_GRAPH_QUERY_UNINDEXED_MAX_ESTIMATED_ROWS: {{ include "seizu.envValue" .Values.seizu.mcp.graphQuery.unindexedMaxEstimatedRows }}
   MCP_EXTERNAL_ENABLED: {{ include "seizu.envValue" .Values.seizu.mcp.external.enabled }}
+  MCP_EXTERNAL_ELICITATION_ENABLED: {{ include "seizu.envValue" .Values.seizu.mcp.external.elicitationEnabled }}
   MCP_EXTERNAL_PROXIES: {{ toJson .Values.seizu.mcp.external.proxies | quote }}
   MCP_EXTERNAL_PLUGIN_URL_MATCH_MODE: {{ include "seizu.envValue" .Values.seizu.mcp.external.pluginUrlMatchMode }}
   MCP_EXTERNAL_DISCOVERY_TTL_SECONDS: {{ include "seizu.envValue" .Values.seizu.mcp.external.discoveryTtlSeconds }}
@@ -201,6 +204,8 @@ data:
   CHAT_HISTORY_LIMIT: {{ include "seizu.envValue" .Values.seizu.chat.historyLimit }}
   CHAT_TOOL_RESULT_MAX_ROWS: {{ include "seizu.envValue" .Values.seizu.chat.toolResultMaxRows }}
   CHAT_TOOL_RESULT_MAX_BYTES: {{ include "seizu.envValue" .Values.seizu.chat.toolResultMaxBytes }}
+  CHAT_ELICITATION_TTL_SECONDS: {{ include "seizu.envValue" .Values.seizu.chat.elicitation.ttlSeconds }}
+  CHAT_ELICITATION_MAX_FIELDS: {{ include "seizu.envValue" .Values.seizu.chat.elicitation.maxFields }}
   TEMPORAL_ADDRESS: {{ include "seizu.envValue" .Values.seizu.temporal.address }}
   TEMPORAL_NAMESPACE: {{ include "seizu.envValue" .Values.seizu.temporal.namespace }}
   TEMPORAL_TASK_QUEUE: {{ include "seizu.envValue" .Values.seizu.temporal.taskQueue }}
